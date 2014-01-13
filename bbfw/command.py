@@ -108,7 +108,7 @@ class CommandLineInterpreter:
         renderer = RulesetSaver(currentRuleset, confName)
         renderer.render()
 
-    def load(self, conf, fileConf, brief, *args, **kwargs):
+    def load(self, conf, fileConf, brief, force, *args, **kwargs):
         """
         Load a configuration from disk into netfilter, enabling it.
         Defaults to using the configuration found in the default folder 
@@ -121,22 +121,36 @@ class CommandLineInterpreter:
             print "\nConfiguration and current rules are identical, nothing to do.\n"
         else:
             renderer = RulesetDiffRenderer(currentRuleset, configRuleset)
-            print renderer.render()
-            
-            done = False
-            answer = "n"
-            while not done:
-                answer = raw_input("\n\nThe configuration will be loaded, applying the above changes. Are you sure? (Y/n)")
-                if not (answer.find("Y") == 0 or answer.find("n") == 0):
-                    print "\nPlease answer 'Y' or 'n'"
-                else:
-                    done = True
-                    
-            if answer.find("Y") == 0:
+
+            if not brief:
+                print renderer.render()
+
+            proceed = True
+            if not force:
+                proceed = self.confirm( "\n\nThe configuration will be loaded, applying the above changes. Are you sure? (Y/n)" )
+
+            if proceed:
                 loadRuleset(configRuleset)
             else:
                 print "\nNo changes applied.\n"
 
+    def confirm(self, msg):
+        result = False
+
+        done = False
+        answer = "n"
+        while not done:
+            answer = raw_input(msg)
+            if not (answer.find("Y") == 0 or answer.find("n") == 0):
+                print "\nPlease answer 'Y' or 'n'"
+            else:
+                done = True
+                    
+        if answer.find("Y") == 0:
+            result = True
+
+        return result
+	
     def show(self, conf, fileConf, brief, force, table, chain, *args, **kwargs):
         """
         Prints out the current netfilter configuration. 
