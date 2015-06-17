@@ -38,7 +38,7 @@ class Renderer:
         pass
 
 class RulesetSaver(Renderer):
-    def __init__(self, conf):
+    def __init__(self, conf, folderName):
         Renderer.__init__(self, conf)
         self.folderName = folderName
         
@@ -78,7 +78,7 @@ class RulesetSaver(Renderer):
 
         # append this chain's policy to the table props
         policies[chain.getName()] = chain.getPolicy()
-        
+
         for child in chain.getChildren():
             self.renderChain(folderName, policies, child)
 
@@ -86,7 +86,7 @@ class RulesetSaver(Renderer):
         tableFileName = os.path.join(self.folderName, "%s.props" % table.getName())
         file = open(tableFileName, "w")
         for name, policy in policies.items():
-            file.write(":%s - %s [0:0]\n" % (name, policy) )
+            file.write(":%s %s [0:0]\n" % (name, policy) )
 
         file.close()
 
@@ -103,9 +103,10 @@ class FileRenderer(Renderer):
             tables = [table]
                     
         for name in tables:            
-            lines = self.renderTable(self.tables[name], chain)
-            buffer.extend(lines)
-    
+            if self.tables.has_key(name):
+                lines = self.renderTable(self.tables[name], chain)
+                buffer.extend(lines)
+             
         buffer.append( self.getFooter() )
         
         return buffer
@@ -292,33 +293,52 @@ class RulesetSummaryRenderer(SummaryRenderer):
         separators.pop()
     
 class RulesetDiffRenderer(SummaryRenderer):
-    def __init__(self, thisRuleset, otherRuleset):
+    def __init__(self, thisRuleset, otherRuleset, table=None, chain=None):
         self.thisRuleset = thisRuleset
         self.otherRuleset = otherRuleset
+        self.table = table
+        self.chain = chain
 
     def renderLines(self, table=None, chain=None):
         buffer = []
         separators = []
         order = 0
         
-        print "Compare Rulesets %s (<) and %s (>)" % (self.thisRuleset.getName(), self.otherRuleset.getName())
-        
-        for tableName in TABLES:
-            thisTable = self.thisRuleset.getTable(tableName)
-            otherTable = self.otherRuleset.getTable(tableName)
-            
-            lastTable = False
+        msg = "Compare %s (<) and %s (>)" % (self.thisRuleset.getName(), self.otherRuleset.getName())
+        if self.table is not None:
+            msg = msg + "\n" + "Only compare table %s" % self.table
+            if self.chain is not None:
+                msg = msg + ". "+ "Only compare chain %s in table %s" % (self.chain, self.table)
 
-            if thisTable is None and otherTable is None:
+        print msg
+        
+        tablesToCompare = TABLES
+        if self.table is not None:
+            tablesToCompare = [self.table]
+
+        for tableName in tablesToCompare:
+            this = self.thisRuleset.getTable(tableName)
+            that = self.otherRuleset.getTable(tableName)
+            
+            if this is None and that is None:
                 continue
-                
-            if thisTable is not None and otherTable is not None:            
-                if not thisTable.equals(otherTable):
-                    buffer.append( (order, tableName) )                
-                    buffer.append( (order + 1, self.renderItemDiff(thisTable, otherTable, order ) )  )
+
+            if self.chain is not None:
+                this = this.getChain(self.chain)
+                that = that.getChain(self.chain)
+
+            if this is not None and that is not None:
+                result = this.equals(that)
+                if not this.equals(that):
+                    buffer.append( (order, tableName) )
+                    if self.chain is None:
+                        buffer.append( (order + 1, self.renderItemDiff(this, that, order ) )  )
+                    else:
+                        buffer.append( (order + 1, self.renderItemDiff(this.getParent(), that.getParent(), order, self.chain ) )  )
+
             else:
                 buffer.append( (order, tableName) )
-                buffer.append( (order + 1, self.renderElemDiff( thisTable, otherTable, order) ) )
+                buffer.append( (order + 1, self.renderElemDiff( this, that, order) ) )
         
         return self.renderTabbed(buffer, separators, 0)
 
@@ -373,13 +393,13 @@ class RulesetDiffRenderer(SummaryRenderer):
             if index < len(thisChain.getRules()):
                 elem = thisChain.getRules()[index].toStr()
                 count += 1
-            left = "  > %s" % elem
+            left = "  < %s" % elem
     
             elem = "<empty>"
             if index < len(otherChain.getRules()):
                 elem =  otherChain.getRules()[index].toStr()
                 count += 1
-            right = "  < %s" % elem
+            right = "  > %s" % elem
     
             if count == 0:
                 done = True
@@ -451,17 +471,20 @@ class RulesetDiffRenderer(SummaryRenderer):
 
         return buffer
 
-    def renderItemDiff(self, thisItem, otherItem, order):
+    def renderItemDiff(self, thisItem, otherItem, order, chain=None):
         buffer = []
         
         children = []
-        if thisItem.isChain():                
-            thisChildren = thisItem.getChildrenNames()
-            otherChildren = otherItem.getChildrenNames()
-
-            children = list(set(thisChildren + otherChildren))
+        if chain is not None:
+            children = [chain]
         else:
-            children = TABLE_CHAINS[thisItem.getName()]
+            if thisItem.isChain():
+                thisChildren = thisItem.getChildrenNames()
+                otherChildren = otherItem.getChildrenNames()
+
+                children = list(set(thisChildren + otherChildren))
+            else:
+                children = TABLE_CHAINS[thisItem.getName()]
 
         # Check common children
         for child in children:

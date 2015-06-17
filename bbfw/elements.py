@@ -24,6 +24,7 @@
 
 
 from logger import log
+from matchers import getMatcher
 
 global TABLES, TABLE_CHAINS, TABLE_CHAINS_EX, TABLE_TARGETS
 
@@ -85,6 +86,13 @@ class TableChainException(Exception):
 
 
 
+class Property:
+    def __init__(self, name, value=None):
+        self.name = name
+        self.value = value
+
+    def __str__(self):
+        return "Property %s with value %s" % (self.name, self.value)
 
 class Rule:
     def __init__(self, line):
@@ -93,11 +101,14 @@ class Rule:
         self.parseLine(line.strip())
     
     def getProperties(self, removeTable=False):
-        result = self.properties[:]
-        if removeTable:
-            if self.getProperty("-A") is not None:
-                result.pop(0)
-                result.pop(0)
+        result = []
+        for prop in self.properties:
+            if removeTable and prop.name == "-A":
+                continue
+
+            result.append(prop.name)
+            if prop.value is not None:
+                result.append(prop.value)
 
         return result
     
@@ -107,30 +118,47 @@ class Rule:
         
         return line.strip()
     
-    def equals(self, rule, ignoreChainAction=True):
-        result = True
+    def propEquals(self, this, that):
+        """
+        Compare rule properties taking into account possible aliases
+        """
 
-        otherProperties = rule.getProperties()
-        thisProperties = self.getProperties()
-        
-        if self.getProperty("-A") is not None:
-            thisProperties.pop(0)
-            thisProperties.pop(0)
-            
-        if rule.getProperty("-A") is not None:
-            otherProperties.pop(0)
-            otherProperties.pop(0)
-        
-        if len(otherProperties) == len(thisProperties):     
-            for i in range(0, len(self.properties)):
-                if thisProperties[i] != otherProperties[i]:
-                    result = False
+        result = this.name == that.name
+        if this.name in RULE_PROP_ALIASES.keys():
+            aliases = RULE_PROP_ALIASES[this.name]
+            for alias in aliases:
+                if that.name == alias:
+                    result = True
                     break
-        else:
-            result = False
 
         return result
-    
+
+    def equals(self, rule):
+        result = True
+
+        thisProps = self.properties
+        thatProps = rule.properties
+
+        for prop in thisProps:
+            if prop.name == "-A":
+                continue
+
+            found = False
+            matcher = getMatcher(prop)
+
+            for otherProp in thatProps:
+                if matcher(prop, otherProp):
+                    found = True
+                    break
+
+            if not found:
+                result = False
+
+            if not result:
+                break
+
+        return result
+
     def isParName(self, string):
         return string[0:1] == '-'
         
@@ -143,41 +171,51 @@ class Rule:
             done = False
             
             while not done:
-                if index == len(parts) - 1:
-                    done = True
-                    
-                if self.isParName( parts[index] ):
-                    if  argName != "":
-                        self.properties.append(argName)
-                    if argValue != "":
-                        self.properties.append(argValue)
-                        
-                    argName = parts[index]
-                    argValue = ""
-                else:
-                    if argValue == "":
-                        argValue = parts[index]
+                argName = parts[index]
+                argValue = None
+ 
+                found = False
+                while not found:
+                    index = index + 1
+                    if index == len(parts):
+                        break
+
+                    if not self.isParName(parts[index]):
+                        if argValue is None:
+                            argValue = ""
+
+                        argValue = "%s%s " % (argValue, parts[index])
                     else:
-                        argValue = "%s %s" % (argValue, parts[index])
-                
-                index = index + 1
-            
-            # Use the last parameter
-            if  argName != "":
-                self.properties.append(argName)
-            if argValue != "":
-                self.properties.append(argValue)
-            
+                        found = True
+
+                if argValue is not None:
+                    argValue = argValue.strip()
+
+                if self.validateProp(argName, argValue):
+                    self.properties.append(Property(argName, argValue))
+
+                if index >= len(parts):
+                    done = True
+ 
+    def validateProp(self, name, value):
+        result = True
+
+        # tcp protocol is a default (and redundant) value
+        if name == "-m" and value == "tcp":
+            result = False
+
+        return result
+
     def getProperty(self, name):
         value = None
         prop = None
         
         for i in range(0, len(self.properties)):
             prop = self.properties[i]
-            if prop == name:
+            if prop.name == name:
                 value = True
-                if (1+i) < len(self.properties) and self.properties[1+i][0:1] != "-":
-                    value = self.properties[1+i]
+                if prop.value is not None:
+                    value = prop.value
                 
                 break
 
@@ -194,7 +232,7 @@ class Chain:
         self.policy = policy
         self.complete = False
         
-        self.setParent(parent)      
+        self.setParent(parent)
         if rows is not None:
             for row in rows:
                 self.rows.append(row)
@@ -202,7 +240,7 @@ class Chain:
     def getChildrenNames(self):
         childrenNames = []
         for child in self.getChildren():
-            childrenNames.append( child.getName())
+            childrenNames.append( child.getName() )
             
         return childrenNames
     
@@ -221,9 +259,9 @@ class Chain:
         if self.getPolicy() != chain.getPolicy():           
             result = False
         elif len(self.getRules()) != len(chain.getRules()):
-            result = False                
+            result = False
         else:
-            index = 0            
+            index = 0
             while index < len(self.rows):
                 if not self.rows[index].equals(chain.rows[index]):
                     result = False
@@ -365,6 +403,8 @@ class Table(Chain):
     def appendChain(self, newChain):
         chain = self.getChain(newChain.getName())
         if chain is None:
+            if newChain.name.startswith("DROP"):
+                raise Exception("pippo")
             self.chains.append(newChain)
 
     def hasChain(self, chainName):

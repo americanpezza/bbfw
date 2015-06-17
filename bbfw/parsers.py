@@ -116,7 +116,7 @@ class Parser():
                 self.readChainLines(parser, chain, table, parentChain)
             
             chain.setComplete()
-            
+
         except ConfFileException, e:
             pass
 
@@ -189,7 +189,7 @@ class IPTSaveFileParser(Parser):
             self.chainLines[targetChain].append(newline)
         else:
             self.chainLines[targetChain] = [newline]
-            
+
     def addPolicy(self, table, line):
         parts = line.split()
         policy = parts[1]
@@ -197,7 +197,7 @@ class IPTSaveFileParser(Parser):
         chain = Chain(chainName, table)
         chain.setPolicy(policy)
         table.appendChain(chain)
-        
+
     def startTable(self, conf, line):
         tableName = line[1:]
         if tableName not in TABLES:
@@ -207,7 +207,7 @@ class IPTSaveFileParser(Parser):
         if table is None:
             table = Table(tableName)
             conf.add(table)
-            
+ 
         return table
                 
     def getParser(self, table, chainName):
@@ -246,9 +246,9 @@ class ConfigParser(Parser):
             parser = FileReader(filename)
             for line in parser.getLines(noComments=True):
                 parts = line.split()
-                policy = parts[2]
+                policy = parts[1]
                 chainName = parts[0].strip(':')
-
+ 
                 chain = table.getChain(chainName)
                 if chain is not None:
                     chain.setPolicy(policy)

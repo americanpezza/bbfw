@@ -24,12 +24,77 @@
 
 
 
-import bbfw.simpleopt
-from bbfw.command import CommandLineInterpreter
 
-def cmdInterpreter(command, verbose=False, force=False, table=None, chain=None, configurationFolder=None, configurationFile=None):
-    cmd = CommandLineInterpreter()
-    cmd.run(command, configurationFolder, configurationFile, not verbose, force, table, chain)
+import argparse, os, traceback, time
+from operations import DEFAULT_CONF, DEFAULT_FILE
 
 
-bbfw.simpleopt.parse_args(cmdInterpreter)
+# pyinstaller requires this explicitly
+from sys import exit
+
+__author__ = 'pezza'
+
+
+
+
+
+def run():
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest='operation', help='Commands')
+    parser.add_argument("-v", "--verbose", action="store_true", help="Display more detailed output and/or error messages")
+
+    # Showconfig
+    subparser = subparsers.add_parser('show', help="Prints out the currently active ruleset or the ruleset loaded from the specified folder (-d) or file (-f). Use -v for a more detailed output.")
+    subparser.add_argument("-t", "--table", action="store", help="The netfilter table that should be processed. Defaults to all tables.")
+    subparser.add_argument("-c", "--chain", action="store", help="The netfilter chain inside the specified table (-t) that should be processed. Defaults to all chains.")
+    subparser.add_argument("-d", "--directory", action="store", help="Directory containing the configuration files")
+    subparser.add_argument("-f", "--file", action="store", help="File containing the target configuration, in the format produced by iptables-save")
+
+    # Compare
+    subparser = subparsers.add_parser('compare', help="Compare two netfilter configurations. Defaults to comparing the current netfilter configuration with the configuration found in the default file '%s'. Use -d or -f to compare with a different configuration folder or file. Use -v for a more detailed output." % DEFAULT_FILE) 
+    subparser.add_argument("-d", "--directory", action="store", help="Directory containing the configuration files")
+    subparser.add_argument("-f", "--file", action="store", help="File containing the target configuration, in the format produced by iptables-save")
+    subparser.add_argument("-t", "--table", action="store", help="The netfilter table that should be processed. Defaults to all tables.")
+    subparser.add_argument("-c", "--chain", action="store", help="The netfilter chain inside the specified table (-t) that should be processed. Defaults to all chains.")
+
+    # Load
+    subparser = subparsers.add_parser('load', help="Load a configuration from disk into netfilter, enabling it. Defaults to using the configuration found in the default folder ('%s' in the current directory)"  % DEFAULT_CONF)
+    subparser.add_argument("-d", "--directory", action="store", help="Directory containing the configuration files")
+    subparser.add_argument("-f", "--file", action="store", help="File containing the target configuration, in the format produced by iptables-save")
+    subparser.add_argument("--force", action="store_true", help="Force loading of the rules without confirmation")
+
+    # Export
+    subparser = subparsers.add_parser('export', help="Export the current netfilter configuration into a configuration folder. Use this to create your first configuration form a running iptables set. Defaults to exporting into the default folder ('%s' in the current directory)" % DEFAULT_CONF)
+    subparser.add_argument("-d", "--directory", action="store", help="Target directory to export the conf files to.")
+
+    # Purge
+    subparser = subparsers.add_parser('purge', help="Purge the specified table. If a chain is specified, only that chain will be removed from the table and destroyed. If no chain is specified, all the chains in the table will be removed and destroyed.")
+    subparser.add_argument("-t", "--table", action="store", help="Target table to be purged.")
+    subparser.add_argument("-c", "--chain", action="store", help="The chain inside the specified table (-t) that should be removed and destroyed.")
+    subparser.add_argument("--force", action="store_true", help="Force loading of the rules without confirmation")
+    subparser.add_argument("-r", "--recursive", action="store_true", help="Recursively remove all child chains in the specified chain.")
+    subparser.add_argument("-x", "--reset", action="store_true", help="Reset the chain policy to 'ACCEPT'.") 
+
+
+    args = parser.parse_args()
+    operation = args.operation
+    exitValue = 0
+
+    try:
+        m = __import__("operations")
+        if not operation.startswith("_") and hasattr(m, operation):
+
+            f = getattr(m, operation)
+            f(args)
+        else:
+            print "Unknown operation %s" % operation
+
+    except Exception, e:
+        print "Unknown error. Use -v for more details"
+        exitValue = 100
+
+    if exitValue != 0 and args.verbose:
+        print traceback.format_exc()
+
+if __name__ == '__main__':
+    run()

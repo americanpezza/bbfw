@@ -25,7 +25,7 @@
 
 import sys
 
-LOGLEVEL = 99
+LOGLEVEL = 10
 
 def getPrefix(level):
     prefix = "INFO"
