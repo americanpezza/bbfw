@@ -13,20 +13,19 @@ bbfw allows you to:
 bbfw commands
 -------------
 - export creates a new configuration from the running netfilter
-- show displays the running configuration
-- showconfig displays bbfw's configuration
+- show displays the a netfilter configuration, either current or from a config folder or file
 - load loads bbfw configuration into netfilter
 - compare compares bbfw's configuration with netfilter
+- purge remove chains or tables from netfilter configuration
 
 
 In a nutshell
 -------------
 1. `bbfwmgr show` displays the current netfilter configuration
 2. `bbfwmgr export` creates a folder in the current directory containing bbfw config, exported from the running netfilter configuration
-3. `bbfwmgr showconfig` displays the current bbfw configuration
-4. now edit the rules in the newly created "tables" folder, using a text editor
-5. `bbfwmgr compare` compares bbfw configuration with the live netfilter one
-6. `bbfwmgr load` loads the bbfw configuration into netfilter
+3.  now manually edit the rules in the newly created "tables" folder, using a text editor
+4. `bbfwmgr compare` compares bbfw configuration with the live netfilter one
+5. `bbfwmgr load` loads the bbfw configuration into netfilter
 
 Once you have a bbfw configurqtion created, you can edit the tables, chains and ruls using a text editor.
 Rules are written using netfilter's `iptables` command syntax, one command per line; you don't need the append/insert and the table/chain name (e.g. no "-A INPUT" prefix).
