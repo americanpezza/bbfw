@@ -62,7 +62,7 @@ def purge(args):
         proceed = _confirm( msg )
 
     if proceed:
-        purgeTable(args.table, args.chain)
+        purgeTable(args.table, args.chain, args.recursive, args.reset)
 
 def export(args):
     """

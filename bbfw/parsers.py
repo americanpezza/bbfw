@@ -74,16 +74,6 @@ class Parser():
         self.chainBuffer = {}
         pass
         
-    def createChain(self, name, parent):
-        chain = None
-        if self.chainBuffer.has_key(name):
-            chain = self.chainBuffer(name)
-        else:
-            chain = Chain(name, parent)
-            self.chainBuffer[name] = chain
-            
-        return chain
-
     def getBufferedChain(self, name):
         chain = None
         if self.chainBuffer.has_key(name):
@@ -104,7 +94,6 @@ class Parser():
 
         try:
             chain = table.getChain(chainName)
-
             parent = table
             if parentChain is not None:
                 parent = parentChain

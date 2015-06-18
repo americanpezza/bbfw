@@ -244,6 +244,15 @@ class Chain:
             
         return childrenNames
     
+    def getRuleByTarget(self, target):
+        """return the rules in this chain that references a ceratin target"""
+        result = []
+        for rule in self.rows:
+            if rule.getTarget() == target:
+                result.append(rule)
+
+        return result
+
     def hasRule(self, targetRule):
         result = False
         for rule in self.rows:
@@ -269,6 +278,7 @@ class Chain:
                     
                 index = index + 1
 
+        # TODO: review this logic to make recursive
         if result:
             if len(self.getChildren()) != len(chain.getChildren()):
                 result = False
@@ -302,6 +312,16 @@ class Chain:
         if row is not None:
             self.rows.append(row)
     
+    def remove(self, rule):
+        result = False
+        for row in self.rows:
+            if row.equals(rule):
+                self.rows.remove(row)
+                result = True
+                break
+
+        return result
+
     def setParent(self, parent):
         self.parent = parent
         if parent is not None:
@@ -338,11 +358,13 @@ class Chain:
         return self.policy
         
     def setPolicy(self, policy):
-        if policy != "":
-            self.policy = policy
+        self.policy = policy
             
     def getRules(self):
         return self.rows
+
+    def purge(self):
+        self.rows = []
 
 class Table(Chain):
     def __init__(self, name, *args, **kwargs):
@@ -403,9 +425,18 @@ class Table(Chain):
     def appendChain(self, newChain):
         chain = self.getChain(newChain.getName())
         if chain is None:
-            if newChain.name.startswith("DROP"):
-                raise Exception("pippo")
             self.chains.append(newChain)
+        else:
+            raise Exception("Chain %s already exists in table %s" % (chain.getName(), self.name))
+
+    def removeChain(self, chainToDelete):
+        result = False
+        chain = self.getChain(chainToDelete.getName())
+        if chain is not None:
+            self.chains.remove(chain)
+            result = True
+
+        return result
 
     def hasChain(self, chainName):
         result = True
@@ -467,7 +498,7 @@ class Table(Chain):
             parent = c.getParent()
             if parent is not None and parent.getName() == chain.getName():
                 result.append(c)
-        
+
         return result
 
     def getBuiltinChains(self):
@@ -476,6 +507,9 @@ class Table(Chain):
             result = TABLE_CHAINS[self.name]
             
         return result
+
+    def getChains(self):
+        return self.chains
         
 class Ruleset:
     def __init__(self, name):

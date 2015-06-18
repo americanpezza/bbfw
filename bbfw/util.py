@@ -42,7 +42,7 @@ def purgeTable(table, chain, recursive=True, reset=True):
 
     for tableToPurge in tablesToPurge:
         tableObject = ruleset.getTable(tableToPurge)
-        chainsToDelete = tableObject.getBuiltinChains()
+        chainsToDelete = tableObject.getChains()
         if chain is not None:
             chainsToDelete = [chain]
 
@@ -53,7 +53,11 @@ def purgeTable(table, chain, recursive=True, reset=True):
 
             purgeChain(chainObject, recursive, reset)
 
+    # Apply changes
+    loadRuleset(ruleset, True)
+
 def purgeChain(chainObject, recursive, reset):
+    table = chainObject.getRoot()
     children = chainObject.getChildren()
 
     if recursive:
@@ -62,40 +66,26 @@ def purgeChain(chainObject, recursive, reset):
             purgeChain(chain, recursive, reset)
 
     # now remove the chain itself
-    tableToPurge = chainObject.getRoot().name
-    chainToDelete = chainObject.name
+    tableToPurge = table.getName()
+    chainToDelete = chainObject.getName()
 
-    result = _purgeChain(tableToPurge, chainToDelete)
-    if not result:
-        raise Exception("Cannot remove chain %s from table %s" % (chainToDelete, tableToPurge))
+    chainObject.purge()
 
-    table = chainObject.getRoot()
     builtins = TABLE_CHAINS[table.name]
+    if chainToDelete in builtins:
+        if reset:
+            result = chainObject.setPolicy("ACCEPT")
 
-    if reset and (chain.name in builtins):
-        result = _setPolicy(tableToPurge, "ACCEPT")
-        if not result:
-            log(20, "Could not reset policy of table %s" % tableToPurge)
+    else:
+        removed = 0
+        root = chainObject.getRoot()
+        for child in root.chains:
+            references = child.getRuleByTarget(chainToDelete)
+            for reference in references:
+                res = child.remove(reference)
+                removed = removed + 1
 
-def _setPolicy(table, policy):
-    iptp = subprocess.Popen(['iptables', '-P', table, policy],stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    (outmsg, errmsg) = iptp.communicate()
-
-    result = True
-    if iptp.returncode != 0:
-        result = False
-
-    return result
-
-def _purgeChain(table, chain):
-    iptp = subprocess.Popen(['iptables', '-F', chain, '-t', table],stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    (outmsg, errmsg) = iptp.communicate()
-
-    result = True
-    if iptp.returncode != 0:
-        result = False
-
-    return result
+        result = chainObject.getRoot().removeChain(chainObject)
 
 def getCurrentRuleset():
     iptp = subprocess.Popen(['iptables-save'],stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -108,7 +98,7 @@ def getCurrentRuleset():
 
     return config
 
-def loadRuleset(ruleset):
+def loadRuleset(ruleset, quiet=False):
     fileRenderer = FileRenderer(ruleset)
     string = fileRenderer.render()
     iptp = subprocess.Popen(['iptables-restore'],stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -139,7 +129,9 @@ def loadRuleset(ruleset):
         except Exception,e:
             traceback.print_exc()
 
-        print "\nCould not load config.\nError occurred while loading the following rule (config line# %s, chain %s in %s):\n-->  %s\nError is: %s" % (errline, configChain, configTable, configErrLine, errlines[0])
+        if not quiet:
+            print "\nCould not load config.\nError occurred while loading the following rule (config line# %s, chain %s in %s):\n-->  %s\nError is: %s" % (errline, configChain, configTable, configErrLine, errlines[0])
     else:
-        print "\nConfig rules loaded succesfully"
+        if not quiet:
+            print "Config rules loaded succesfully"
 

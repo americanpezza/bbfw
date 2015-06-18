@@ -90,7 +90,9 @@ def run():
             print "Unknown operation %s" % operation
 
     except Exception, e:
-        print "Unknown error. Use -v for more details"
+        if not args.verbose:
+            print "%s" % e
+            print "Use -v for more details"
         exitValue = 100
 
     if exitValue != 0 and args.verbose:
