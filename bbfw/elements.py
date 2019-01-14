@@ -28,19 +28,22 @@ from matchers import getMatcher
 
 global TABLES, TABLE_CHAINS, TABLE_CHAINS_EX, TABLE_TARGETS
 
+# for a quick intro to netfilter and iptables: https://www.dbsysnet.com/2016/06/a-deep-dive-into-iptables-and-netfilter-architecture-2
+
 # The linux IPTABLES tables
-TABLES = ['mangle', 'nat', 'filter', 'raw']
+TABLES = ['mangle', 'nat', 'filter', 'raw', 'security']
 
 # Default chains per each table
 TABLE_CHAINS = {
     'mangle': ['PREROUTING', 'INPUT', 'FORWARD', 'OUTPUT', 'POSTROUTING'],
     'nat': ['PREROUTING', 'OUTPUT', 'POSTROUTING'],
     'filter': ['INPUT', 'FORWARD', 'OUTPUT'],
+    'security': ['INPUT', 'FORWARD', 'OUTPUT'],
     'raw': ['PREROUTING', 'OUTPUT']
 }
 
 # Can the table contain custom chains?
-TABLE_CHAINS_EX = { 'mangle': False, 'nat': False, 'filter': True, 'raw': False }
+TABLE_CHAINS_EX = { 'mangle': True, 'nat': True, 'filter': True, 'raw': True, 'security': True }
 
 STANDARD_TARGETS = ['DROP', 'RETURN', 'QUEUE', 'ACCEPT']
 
@@ -64,6 +67,12 @@ TABLE_TARGETS = {
     },
     
     'filter': {
+        'INPUT' : ['REJECT'], 
+        'FORWARD': ['REJECT'], 
+        'OUTPUT': ['REJECT']    
+    },
+    
+    'security': {
         'INPUT' : ['REJECT'], 
         'FORWARD': ['REJECT'], 
         'OUTPUT': ['REJECT']    
@@ -222,7 +231,13 @@ class Rule:
         return value
 
     def getTarget(self):
-        return self.getProperty("-j")
+        # -j or -g decide the target. -j has precedence
+        target = self.getProperty("-j")
+        if target is None:
+            target = self.getProperty("-g")
+
+        #return self.getProperty("-j")
+        return target
 
 class Chain:
     def __init__(self, name, parent, rows=None, policy="-"):

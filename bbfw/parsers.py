@@ -72,20 +72,19 @@ class FileReader(RulesParser):
 class Parser():
     def __init__(self):
         self.chainBuffer = {}
-        pass
-        
+
     def getBufferedChain(self, name):
         chain = None
         if self.chainBuffer.has_key(name):
             chain = self.chainBuffer(name)
-            
+
         return chain
-        
+
     def parseTableChains(self, table):
         for chainName in table.getBuiltinChains():
             self.parseTableChain(chainName, table)
             self.chainBuffer = {}
-    
+
     def parseTableChain(self, chainName, table, parentChain=None):
         currentChain = table.getChain(chainName)
         if currentChain is None:
@@ -97,13 +96,13 @@ class Parser():
             parent = table
             if parentChain is not None:
                 parent = parentChain
-                
+
             chain.setParent(parent)
-            
+
             parser = self.getParser(table, chain.getName())
             if parser is not None:
                 self.readChainLines(parser, chain, table, parentChain)
-            
+
             chain.setComplete()
 
         except ConfFileException, e:
@@ -196,9 +195,9 @@ class IPTSaveFileParser(Parser):
         if table is None:
             table = Table(tableName)
             conf.add(table)
- 
+
         return table
-                
+
     def getParser(self, table, chainName):
         parser = None
         if self.chainLines.has_key(chainName):
