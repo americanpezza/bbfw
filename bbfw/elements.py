@@ -49,9 +49,9 @@ STANDARD_TARGETS = ['DROP', 'RETURN', 'QUEUE', 'ACCEPT']
 
 EXTENDED_TARGETS = ['CLASSIFY', 'CLUSTERIP', 'CONNMARK', 'DSCP', 'LOG', 'NFLOG', 'NFQUEUE', 'RATEEST',
             'SET', 'TCPOPTSTRIP', 'ULOG']
-            
+
 TABLE_TARGETS = {
-    'mangle': { 
+    'mangle': {
         'PREROUTING' : ['SECMARK', 'CONNSECMARK', 'ECN', 'MARK', 'MIRROR', 'TCPMSS', 'TOS', 'TPROXY', 'TTL'],
         'INPUT' : ['SECMARK', 'CONNSECMARK', 'ECN', 'MARK', 'MIRROR', 'TCPMSS', 'TOS', 'TPROXY', 'TTL'],
         'FORWARD' : ['SECMARK', 'CONNSECMARK', 'ECN', 'MARK', 'MIRROR', 'TCPMSS', 'TOS', 'TPROXY', 'TTL'],
@@ -67,22 +67,22 @@ TABLE_TARGETS = {
     },
 
     'filter': {
-        'INPUT' : ['REJECT'], 
-        'FORWARD': ['REJECT'], 
-        'OUTPUT': ['REJECT']    
+        'INPUT' : ['REJECT'],
+        'FORWARD': ['REJECT'],
+        'OUTPUT': ['REJECT']
     },
 
     'security': {
-        'INPUT' : ['REJECT'], 
-        'FORWARD': ['REJECT'], 
-        'OUTPUT': ['REJECT']    
+        'INPUT' : ['REJECT'],
+        'FORWARD': ['REJECT'],
+        'OUTPUT': ['REJECT']
     },
-    
+
     'raw':{
         'PREROUTING' : ['NOTRACK', 'TRACE'],
         'OUTPUT' : ['NOTRACK', 'TRACE'],
     }
-}   
+}
 
 class TablePropsException(Exception):
     pass
@@ -384,7 +384,7 @@ class Chain:
 class Table(Chain):
     def __init__(self, name, *args, **kwargs):
         Chain.__init__(self, name, None, *args, **kwargs)
-        
+
         # The chains in this table
         self.chains = []
 
@@ -399,7 +399,7 @@ class Table(Chain):
                     if child.hasRule(rule):
                         result = child
                         break
-                        
+
         return result
 
     def __str__(self):
@@ -407,7 +407,7 @@ class Table(Chain):
 
     def equals(self, otherTable):
         result = True
-        
+
         if otherTable.getName() != self.name:
             log( 20, "Cannot compare table %s with table %s" % (self.name, otherTable.getName()) )
             result = False
@@ -416,25 +416,25 @@ class Table(Chain):
             for chainName in self.getBuiltinChains():
                 thisChain = self.getChain(chainName)
                 otherChain = otherTable.getChain(chainName)
-                
+
                 if otherChain is None:
                     result = False
-                
+
                 elif thisChain is None:
                     result = False
-                
+
                 else:
                     if not thisChain.equals(otherChain):
                         result = False
 
         return result
-       
+
     def getChain(self, name):
         result = None
         for chain in self.chains:
             if chain.getName() == name:
                 result = chain
-            
+
         return result
 
     def appendChain(self, newChain):
@@ -465,17 +465,17 @@ class Table(Chain):
         result = False
         if self.name in TABLE_CHAINS_EX and TABLE_CHAINS_EX[self.name]:
             result = True
-        
+
         return result
-        
+
     def canContainChain(self, chainName):
         result = False
         # If the chain is a builtin chain *or* the table is extensible
         if self.name in TABLES and (chainName in TABLE_CHAINS[self.name] or TABLE_CHAINS_EX[self.name]):
             result = True
-            
+
         return result
-    
+
     def isUserTarget(self, target, chain):
         result = False
         valid = self.isTargetValid(target, chain.getName())
@@ -483,22 +483,22 @@ class Table(Chain):
             # If we're not a standard, extended or per table target, we must be a user defined chain
             tableChainTargets = []
             rootChain = chain.getRootChain()
-            
+
             if TABLE_TARGETS[self.name].has_key(rootChain.getName()):
                 tableChainTargets = TABLE_TARGETS[self.name][rootChain.getName()]
-            
+
             if target not in STANDARD_TARGETS and target not in EXTENDED_TARGETS and target not in tableChainTargets:
                 result = True
-                
-        return result           
-    
+
+        return result
+
     def isTargetValid(self, target, chain):
         result = False
         tableChainTargets = []
-        
+
         if self.name in TABLE_TARGETS.keys() and chain in TABLE_TARGETS[self.name].keys():
             tableChainTargets = TABLE_TARGETS[self.name][chain]
-        
+
         if target in STANDARD_TARGETS or target in EXTENDED_TARGETS or target in tableChainTargets:
             result = True
 
@@ -520,31 +520,31 @@ class Table(Chain):
         result = []
         if self.name in TABLE_CHAINS:
             result = TABLE_CHAINS[self.name]
-            
+
         return result
 
     def getChains(self):
         return self.chains
-        
+
 class Ruleset:
     def __init__(self, name):
         self.tables = {}
         self.name = name
-        
+
     def getName(self):
         return self.name
-        
+
     def add(self, table):
         if table is not None:
             self.tables[table.getName()] = table
-    
+
     def getTable(self, name):
         result = None
         if self.tables.has_key(name):
             result = self.tables[name]
-        
+
         return result
-            
+
     def getTables(self):
         return self.tables
 
@@ -554,26 +554,26 @@ class Ruleset:
             chain = table.getChainFromRule(rule)
             if chain is not None:
                 result = chain
-                
+
         return result
 
     def equals(self, otherConfig):
         result = True
         thisTables = len(self.tables.keys())
         otherTables = len(otherConfig.tables.keys())
-        
+
         if thisTables != otherTables:
             result = False
         else:
             for tableName in self.getTables().keys():
                 table = self.tables[tableName]
                 otherTable = otherConfig.getTable(tableName)
-            
+
                 if otherTable is None:
                     result = False
                     break
                 else:
                     if not table.equals(otherTable):
                         result = False
-        
+
         return result

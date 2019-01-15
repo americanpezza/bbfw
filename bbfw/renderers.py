@@ -132,59 +132,59 @@ class FileRenderer(Renderer):
     def renderTable(self, table, chainName=None):
         buffer = []
         body = []
-        
+
         chains = table.getBuiltinChains()
         if chainName is not None:
             chains = [chainName]
-        
+
         for name in chains:
             chain = table.getChain(name)
             if chain is not None:
                 chainLines = self.renderChain(chain)
                 if len(chainLines) > 0:
                     body.extend(chainLines)
-        
+
         if len(body) > 0:
             if chainName is None:
                 buffer.append( self.getTableHeader(table))
                 buffer.extend(self.renderPolicies(table))
             buffer.extend(body)
-            
+
             if chainName is None:
                 buffer.append( self.getTableFooter(table))
-                    
+
         return buffer
-        
+
     def renderPolicies(self, table):
         buffer = []
         for chain in table.chains:
             policyText = ":%s %s [0:0]" % (chain.getName(), chain.getPolicy())
             buffer.append(policyText)
-        
+
         return buffer
-            
+
     def renderChain(self, chain):
         buffer = []
         rows = chain.getRules()
-        
+
         if len(rows) > 0:
             buffer.append(self.getChainHeader(chain))
-            
+
             for row in rows:
                 buffer.append("-A %s %s" % (chain.getName(), row.toStr()))
 
             buffer.append(self.getChainFooter(chain))
-        
+
         for child in chain.getChildren():
             lines = self.renderChain(child)
             buffer.extend(lines)
-            
+
         return buffer
 
 class SummaryRenderer(Renderer):
     def __init__(self, config):
         Renderer.__init__(self, config)
-        
+
     def renderLines(self, table=None, chain=None):
         pass
 
@@ -194,20 +194,20 @@ class SummaryRenderer(Renderer):
             fragment = ""
             for i in range(0, sep + 3):
                 fragment = fragment + " "
-            
+
             line = line + fragment
-            
+
             if not last:
                 line = line + "|"
-        
+
         sep = ""
         if len(separators) > 0:
             (last, s) = separators[len(separators) - 1]
             if last:
                 sep = sep + "+"
-                       
+
         line = line + "%s-->%s" % (sep, name)
-        
+
         return line
 
 class RulesetSummaryRenderer(SummaryRenderer):
@@ -276,7 +276,7 @@ class RulesetSummaryRenderer(SummaryRenderer):
                     self.showSummaryChain(buffer, chain, separators, last)
             index += 1
 
-        return buffer    
+        return buffer
 
     def showSummaryChain(self, buffer, chain, separators, last):
         children = chain.getChildren()
@@ -305,7 +305,7 @@ class RulesetDiffRenderer(SummaryRenderer):
         buffer = []
         separators = []
         order = 0
-        
+
         msg = "Compare %s (<) and %s (>)" % (self.thisRuleset.getName(), self.otherRuleset.getName())
         if self.table is not None:
             msg = msg + "\n" + "Only compare table %s" % self.table
@@ -313,7 +313,7 @@ class RulesetDiffRenderer(SummaryRenderer):
                 msg = msg + ". "+ "Only compare chain %s in table %s" % (self.chain, self.table)
 
         print msg
-        
+
         tablesToCompare = TABLES
         if self.table is not None:
             tablesToCompare = [self.table]
@@ -321,7 +321,7 @@ class RulesetDiffRenderer(SummaryRenderer):
         for tableName in tablesToCompare:
             this = self.thisRuleset.getTable(tableName)
             that = self.otherRuleset.getTable(tableName)
-            
+
             if this is None and that is None:
                 continue
 
