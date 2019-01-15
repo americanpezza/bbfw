@@ -57,21 +57,21 @@ TABLE_TARGETS = {
         'FORWARD' : ['SECMARK', 'CONNSECMARK', 'ECN', 'MARK', 'MIRROR', 'TCPMSS', 'TOS', 'TPROXY', 'TTL'],
         'OUTPUT' : ['SECMARK', 'CONNSECMARK', 'ECN', 'MARK', 'MIRROR', 'TCPMSS', 'TOS', 'TPROXY', 'TTL'],
         'POSTROUTING' : ['SECMARK', 'CONNSECMARK', 'ECN', 'MARK', 'MIRROR', 'TCPMSS', 'TOS', 'TPROXY', 'TTL']
-                
+
     },
-    
+
     'nat': {
         'PREROUTING' : ['DNAT', 'NETMAP', 'REDIRECT', 'SAME'],
         'OUTPUT' : ['DNAT', 'NETMAP', 'REDIRECT', 'SAME'],
         'POSTROUTING' : ['MASQUERADE', 'NETMAP', 'SNAT', 'SAME']
     },
-    
+
     'filter': {
         'INPUT' : ['REJECT'], 
         'FORWARD': ['REJECT'], 
         'OUTPUT': ['REJECT']    
     },
-    
+
     'security': {
         'INPUT' : ['REJECT'], 
         'FORWARD': ['REJECT'], 
@@ -301,7 +301,7 @@ class Chain:
                 thisChildren = self.getChildren()
                 index = 0
                 done = False
-            
+
                 while index < len(thisChildren):
                     childDifferences = []
                     thisChild = thisChildren[index]
@@ -309,17 +309,17 @@ class Chain:
                     if not thisChild.equals(otherChild):
                         result = False
                         break
-                                            
+
                     index = index + 1
-        
+
         return result        
-   
+
     def isComplete(self):
         return self.complete
-    
+
     def setComplete(self):
         self.complete = True
-    
+
     def __str__(self):
         return "Chain %s [parent %s]" % (self.name, self.parent)
     

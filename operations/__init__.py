@@ -121,7 +121,7 @@ def show(args):
             ruleset = _getFileRuleset(args.file)
 
     _printRuleset(ruleset, args.verbose, args.table, args.chain)
-        
+
 def compare(args):
     """
     Compare two netfilter configurations.

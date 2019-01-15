@@ -132,15 +132,15 @@ class IPTSaveFileParser(Parser):
         Parser.__init__(self)
         self.lines = lines
         self.chainLines = {}
-        
+
     def parse(self):
         conf = Ruleset("File Ruleset")
-        
+
         currentTable = None
         for line in self.lines:
             if len(line) < 1:
                 continue
-                
+
             if line.find("#") == 0:
                 continue
 
@@ -150,27 +150,27 @@ class IPTSaveFileParser(Parser):
                 currentTable = self.startTable(conf, line)
 
             elif line.find("COMMIT") == 0:
-                self.parseTableChains(currentTable)                
+                self.parseTableChains(currentTable)
                 currentTable = None
                 self.chainLines = {}
-                
+
             elif line.find(":") == 0:
                 self.addPolicy(currentTable, line)
-                
+
             else:
                 self.addRule(currentTable, line)
 
         return conf
-        
+
     def addRule(self, table, line):
         parser = Rule(line)
         targetChain = parser.getProperty("-A")
         if targetChain is None:
             raise ParserException("Can't find chain name to append to in line '%s'" % line)
-            
+
         if not table.canContainChain(targetChain):
             raise ParserException("Chain %s is not valid for table %s" % (targetChain, table.getName()))
-            
+
         parts = line.split()
         newline = " ".join(parts[2:])
         if self.chainLines.has_key(targetChain):

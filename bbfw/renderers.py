@@ -30,7 +30,7 @@ class Renderer:
     def __init__(self, config):
         self.tables = config.getTables()
         self.conf = config
-        
+
     def render(self, table=None, chain=None):
         return "\n".join(self.renderLines(table, chain))
             
@@ -221,27 +221,29 @@ class RulesetSummaryRenderer(SummaryRenderer):
             buffer = self.renderTableChain(table, chain)
         else:
             buffer = self.renderAll()
-                    
+
         return buffer
 
     def renderTableChain(self, tableName, chainName=None):
         buffer = []
         separators = []
         index = 0
-    
+
         if tableName not in self.tables.keys():
             raise "Uknown table %s" % tableName
-        else:        
+        else:
             buffer.append( self.renderWithSeparators(separators, tableName) )
-        
+
             table = self.tables[tableName]
-            
+
             chains = table.getBuiltinChains()
             if chainName is not None:
                 chains = [chainName]
 
             yindex = 0
             for chainName in chains:
+            #while len(chains) > 0:
+            #    chainName = chains.pop()
                 chain = table.getChain(chainName)
                 if chain is not None:
                     yindex += 1
@@ -250,7 +252,7 @@ class RulesetSummaryRenderer(SummaryRenderer):
                         last = True
                     self.showSummaryChain(buffer, chain, separators, last)
             index += 1
-        
+
         return buffer
 
     def renderAll(self):
@@ -260,7 +262,7 @@ class RulesetSummaryRenderer(SummaryRenderer):
 
         for tableName in self.tables.keys():
             buffer.append( self.renderWithSeparators(separators, tableName) )
-            
+
             table = self.tables[tableName]
             builtin = table.getBuiltinChains()
             yindex = 0
@@ -273,7 +275,7 @@ class RulesetSummaryRenderer(SummaryRenderer):
                         last = True
                     self.showSummaryChain(buffer, chain, separators, last)
             index += 1
-        
+
         return buffer    
 
     def showSummaryChain(self, buffer, chain, separators, last):
@@ -289,9 +291,9 @@ class RulesetSummaryRenderer(SummaryRenderer):
 
             self.showSummaryChain(buffer, child, separators, lastOne)
             index += 1
-            
+
         separators.pop()
-    
+
 class RulesetDiffRenderer(SummaryRenderer):
     def __init__(self, thisRuleset, otherRuleset, table=None, chain=None):
         self.thisRuleset = thisRuleset
