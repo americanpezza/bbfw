@@ -33,7 +33,7 @@ class Renderer:
 
     def render(self, table=None, chain=None):
         return "\n".join(self.renderLines(table, chain))
-            
+
     def renderLines(self, table=None, chain=None):
         pass
 
@@ -41,39 +41,39 @@ class RulesetSaver(Renderer):
     def __init__(self, conf, folderName):
         Renderer.__init__(self, conf)
         self.folderName = folderName
-        
+
     def renderLines(self, table=None, chain=None):
         result = []
         os.makedirs(self.folderName)
-        
+
         for name, table in self.tables.items():
             os.makedirs(self.getFolderName(name))
             self.renderTable(table, name)
             result.append( "Table %s saved." % name )
-    
+
         return result
-        
+
     def getFolderName(self, name):
         return os.path.join(self.folderName, name)
-        
+
     def renderTable(self, table, name):
         tableFolderName = self.getFolderName(name)
-        
+
         # Chain policies
         policies = {}
         for chainName in table.getBuiltinChains():
             chain = table.getChain(chainName)
             if chain is not None:
                 self.renderChain(tableFolderName, policies, chain)                
-        
+
         self.renderTableProps(table, policies)
-        
+
     def renderChain(self, folderName, policies, chain):
         chainFileName = os.path.join(folderName, "%s.src" % chain.getName())
         file = open(chainFileName, "w")
         for rule in chain.getRules():
             file.write( "%s\n" % rule.toStr(True) )
-        
+
         file.close()
 
         # append this chain's policy to the table props
@@ -93,7 +93,7 @@ class RulesetSaver(Renderer):
 class FileRenderer(Renderer):
     def __init__(self, config):
         Renderer.__init__(self, config)
-        
+
     def renderLines(self, table=None, chain=None):
         buffer = []
         buffer.append( self.getHeader()  )
@@ -101,19 +101,19 @@ class FileRenderer(Renderer):
         tables = self.tables.keys()
         if table is not None:
             tables = [table]
-                    
-        for name in tables:            
+
+        for name in tables:
             if self.tables.has_key(name):
                 lines = self.renderTable(self.tables[name], chain)
                 buffer.extend(lines)
-             
+
         buffer.append( self.getFooter() )
-        
+
         return buffer
-    
+
     def getHeader(self):
         return "############\n\n"
-    
+
     def getFooter(self):
         return "###########\n# End\n###########\n\n"
 
@@ -121,14 +121,14 @@ class FileRenderer(Renderer):
         return "#####\n# The %s %s chain\n#####" % (chain.getRoot().getName(), chain.name)
 
     def getChainFooter(self, chain):
-        return "#####\n# End of the %s %s chain\n#####" % (chain.getRoot().getName(), chain.name)       
+        return "#####\n# End of the %s %s chain\n#####" % (chain.getRoot().getName(), chain.name)
 
     def getTableHeader(self, table):
         return "########\n# The %s table\n########\n*%s" % (table.name, table.name)
 
     def getTableFooter(self, table):
         return "\nCOMMIT\n########\n# End of the %s table\n########\n\n" % (table.name)
-            
+
     def renderTable(self, table, chainName=None):
         buffer = []
         body = []
@@ -341,14 +341,14 @@ class RulesetDiffRenderer(SummaryRenderer):
             else:
                 buffer.append( (order, tableName) )
                 buffer.append( (order + 1, self.renderElemDiff( this, that, order) ) )
-        
+
         return self.renderTabbed(buffer, separators, 0)
 
     def renderTabbed(self, data, separators, length):
         buffer = []
         indices = {}
         newLength = 0
-        
+
         lastOne = False
         for order, info in data:
             firstOne = False
@@ -499,7 +499,7 @@ class RulesetDiffRenderer(SummaryRenderer):
             elif thisChild is not None and otherChild is not None:
                 if not thisChild.equals(otherChild):
                     buffer.extend( self.renderChainDiff(thisChild, otherChild, order + 1) )
-                
+
             else:
                 buffer.append( (order, thisItem.getName()) )
                 buffer.extend( self.renderElemDiff(thisChild, otherChild, order)   )
@@ -512,7 +512,7 @@ class RulesetDiffRenderer(SummaryRenderer):
         if elem1 is not None:
             elemText = "present" 
         buffer.append( (order, "  < %s" % elemText) )
-        
+
         elemText = "<not present>"
         if elem2 is not None:
             elemText = "present" 

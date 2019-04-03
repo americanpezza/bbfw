@@ -50,7 +50,7 @@ registerMatcher("__default__", defaultMatcher)
 
 def setmarkMatcher(this, that):
     def validate(prop):
-        result = {'name': "--set-xmark", "value": this.value }
+        result = {'name': "--set-xmark", "value": prop.value }
         if prop.name == "--set-mark":
             result['name'] = "--set-xmark"
             result['value'] = "%s/0xffffffff" % prop.value
@@ -143,5 +143,71 @@ def commentMatcher(this, that):
     return result
 
 registerMatcher("--comment", commentMatcher)
+
+def recentDefaults(this, that):
+    return True
+
+registerMatcher("--rsource", recentDefaults)
+
+def optionalModuleSpecMatcher(this, that):
+    protocols = ['tcp', 'udp', 'icmp']
+    result = False
+    value = str(this.value)
+    value2 = str(that.value)
+    if value in protocols or value2 in protocols:
+        result = True
+    else:
+        if value == value2:
+            result = True
+
+    return result
+
+registerMatcher("--module", optionalModuleSpecMatcher)
+registerMatcher("-m", optionalModuleSpecMatcher)
+
+def tcpflagsMatchGroup(groupSX, groupDX):
+    result = True
+    for flag in groupSX:
+        if flag not in groupDX:
+            result = False
+            break
+
+    return result
+
+def tcpflagsGroupCompare(groupSX, groupDX):
+    result = False
+    if tcpflagsMatchGroup(groupSX, groupDX) and tcpflagsMatchGroup(groupDX, groupSX):
+        result = True
+
+    return result
+
+def tcpflagsGroups(this):
+    result = None
+    parts = this.value.split(" ")
+    if len(parts) == 2:
+        flagsSX = parts[0].split(",")
+        flagsDX = parts[1].split(",")
+        result = (flagsSX, flagsDX)
+
+    return result
+
+def tcpflagsMatcher(this, that):
+    result = False
+    thisGroups = None
+    thatGroups = None
+
+    if this.value is not None and that.value is not None:
+        thisGroups = tcpflagsGroups(this)
+        thatGroups = tcpflagsGroups(that)
+
+    if thisGroups is not None and thatGroups is not None:
+        leftCompare = tcpflagsGroupCompare(thisGroups[0], thatGroups[0])
+        rightCompare = tcpflagsGroupCompare(thisGroups[1], thatGroups[1])
+
+        result = (leftCompare and rightCompare)
+
+    return result
+
+registerMatcher("--tcp-flags", tcpflagsMatcher )
 
 

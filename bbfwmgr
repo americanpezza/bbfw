@@ -27,7 +27,7 @@
 
 import argparse, os, traceback, time
 from operations import DEFAULT_CONF, DEFAULT_FILE
-
+from bbfw.logger import getLogLevels, setLogLevel
 
 # pyinstaller requires this explicitly
 from sys import exit
@@ -39,9 +39,19 @@ __author__ = 'pezza'
 
 
 def run():
+
+    levels = getLogLevels()
+    newLevels = {}
+    levelnames = []
+    for l in levels:
+        (name, level) = l
+        newLevels[name] = level
+        levelnames.append(name)
+
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest='operation', help='Commands')
     parser.add_argument("-v", "--verbose", action="store_true", help="Display more detailed output and/or error messages")
+    parser.add_argument("-l", "--loglevel", choices=levelnames, default='ERROR', action="store", help="The loglevel to use for the operation, defaults to ERROR")
 
     # Showconfig
     subparser = subparsers.add_parser('show', help="Prints out the currently active ruleset or the ruleset loaded from the specified folder (-d) or file (-f). Use -v for a more detailed output.")
@@ -61,6 +71,7 @@ def run():
     subparser = subparsers.add_parser('load', help="Load a configuration from disk into netfilter, enabling it. Defaults to using the configuration found in the default folder ('%s' in the current directory)"  % DEFAULT_CONF)
     subparser.add_argument("-d", "--directory", action="store", help="Directory containing the configuration files")
     subparser.add_argument("-f", "--file", action="store", help="File containing the target configuration, in the format produced by iptables-save")
+    subparser.add_argument("-w", "--wipe", action="store_true", help="Wipe all tables before loading. This will flush all chains, and then remove user chains in each table")
     subparser.add_argument("--force", action="store_true", help="Force loading of the rules without confirmation")
 
     # Export
@@ -78,6 +89,8 @@ def run():
 
     args = parser.parse_args()
     operation = args.operation
+    setLogLevel(newLevels[args.loglevel])
+
     exitValue = 0
 
     try:

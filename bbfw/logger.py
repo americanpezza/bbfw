@@ -25,15 +25,35 @@
 
 import sys
 
-LOGLEVEL = 10
+# Default loglevel
+LOGLEVEL = 20
+LOGLEVELS = [
+              ('CRITICAL', 10),
+              ('ERROR', 20),
+              ('INFO', 40),
+              ('WARNING', 70),
+              ('DEBUG', 100),
+              ('LOWLEVEL', 200)
+            ]
+
+def setLogLevel(l):
+    global LOGLEVEL
+    LOGLEVEL = l
+
+def getLogLevels():
+    global LOGLEVELS
+
+    return LOGLEVELS
 
 def getPrefix(level):
-    prefix = "INFO"
-    if level <= 10:
-        prefix = "ERROR"
-    elif level <= 20:
-        prefix = "WARNING"
-    
+    prefix = "DEF"
+    for l in LOGLEVELS:
+        (name, lv) = l
+
+        if level <= lv:
+            prefix = name
+            break
+
     return prefix
 
 def log(level, message):

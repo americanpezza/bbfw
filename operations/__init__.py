@@ -70,11 +70,11 @@ def export(args):
     Use this to create your first configuration form a running iptables set.
     Defaults to exporting into the default folder ('%s' in the current directory)
     """ % DEFAULT_CONF
-    
+
     confName = args.directory
     if confName is None:
         confName = DEFAULT_CONF
-        
+
     currentRuleset = _getCurrentRuleset()
     renderer = RulesetSaver(currentRuleset, confName)
     renderer.render()
@@ -86,6 +86,7 @@ def load(args):
     ('%s' in the current directory)
     """  % DEFAULT_CONF
 
+    wipeExisting = args.wipe
     configRuleset = _getFirstRuleset(args.directory, args.file)
     currentRuleset = _getCurrentRuleset()
     if configRuleset.equals(currentRuleset):
@@ -97,13 +98,30 @@ def load(args):
             print renderer.render()
 
         proceed = True
+
+        if not wipeExisting:
+            print "\n\nThe chains contained in the selected config will be loaded. If a chain with the same name already exists in the current config, it will be flushed and its contents replaced with the ones from the config."
+        else:
+            print "\n\nAll user chains will be flushed and deleted and all system chains will be flushed before loading the selected config."
+
         if not args.force:
-            proceed = _confirm( "\n\nThe configuration will be loaded, applying the above changes. Are you sure? (Y/n)" )
+            print "The following chains will be loaded:\n %s \n" % _prettyPrintChains(configRuleset.getTables())
+            proceed = _confirm( "Are you sure you want to continue? (Y/n)" )
 
         if proceed:
-            loadRuleset(configRuleset)
+            loadRuleset(configRuleset, not args.verbose, wipeExisting)
         else:
-            print "\nNo changes applied.\n"
+            print "\nNo change applied.\n"
+
+def _prettyPrintChains(tables):
+    text = ""
+    for name, t in tables.items():
+        text = text + "\n * %s table:" % name
+        chains = t.getChains()
+        for c in chains:
+            text = text + "\n     - %s" % c.getName()
+
+    return text
 
 def show(args):
     """

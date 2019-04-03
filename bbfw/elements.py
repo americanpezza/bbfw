@@ -108,7 +108,7 @@ class Rule:
         self.properties = []
         self.line = line.strip()
         self.parseLine(line.strip())
-    
+
     def getProperties(self, removeTable=False):
         result = []
         for prop in self.properties:
@@ -169,8 +169,8 @@ class Rule:
         return result
 
     def isParName(self, string):
-        return string[0:1] == '-'
-        
+        return (string[0:1] == '-' or string[0:1] == '!')
+
     def parseLine(self, line):
         if len(line) > 0:
             parts = line.split()
@@ -178,11 +178,11 @@ class Rule:
             argValue = ""
             argName = ""
             done = False
-            
+
             while not done:
                 argName = parts[index]
                 argValue = None
- 
+
                 found = False
                 while not found:
                     index = index + 1
@@ -205,13 +205,13 @@ class Rule:
 
                 if index >= len(parts):
                     done = True
- 
+
     def validateProp(self, name, value):
         result = True
 
-        # tcp protocol is a default (and redundant) value
-        if name == "-m" and value == "tcp":
-            result = False
+#        # tcp protocol is a default (and redundant) value
+#        if name == "-m" and value == "tcp":
+#            result = False
 
         return result
 
@@ -225,7 +225,7 @@ class Rule:
                 value = True
                 if prop.value is not None:
                     value = prop.value
-                
+
                 break
 
         return value
@@ -246,19 +246,19 @@ class Chain:
         self.builtin = False
         self.policy = policy
         self.complete = False
-        
+
         self.setParent(parent)
         if rows is not None:
             for row in rows:
                 self.rows.append(row)
-    
+
     def getChildrenNames(self):
         childrenNames = []
         for child in self.getChildren():
             childrenNames.append( child.getName() )
-            
+
         return childrenNames
-    
+
     def getRuleByTarget(self, target):
         """return the rules in this chain that references a ceratin target"""
         result = []
@@ -274,13 +274,13 @@ class Chain:
             if rule.equals(targetRule):
                 result = True
                 break
-        
+
         return result
-    
+
     def equals(self, chain):
         result = True
 
-        if self.getPolicy() != chain.getPolicy():           
+        if self.getPolicy() != chain.getPolicy():
             result = False
         elif len(self.getRules()) != len(chain.getRules()):
             result = False
@@ -290,7 +290,7 @@ class Chain:
                 if not self.rows[index].equals(chain.rows[index]):
                     result = False
                     break
-                    
+
                 index = index + 1
 
         # TODO: review this logic to make recursive
@@ -312,7 +312,7 @@ class Chain:
 
                     index = index + 1
 
-        return result        
+        return result
 
     def isComplete(self):
         return self.complete
@@ -320,13 +320,16 @@ class Chain:
     def setComplete(self):
         self.complete = True
 
+    def __repr__(self):
+        return self.__str__()
+
     def __str__(self):
         return "Chain %s [parent %s]" % (self.name, self.parent)
-    
+
     def append(self, row):
         if row is not None:
             self.rows.append(row)
-    
+
     def remove(self, rule):
         result = False
         for row in self.rows:
@@ -341,8 +344,8 @@ class Chain:
         self.parent = parent
         if parent is not None:
             if isinstance(parent, Table):
-                self.builtin = TABLE_CHAINS_EX[parent.getName()]    
-            
+                self.builtin = TABLE_CHAINS_EX[parent.getName()]
+
     def isChain(self):
         return not self.parent is None
 
@@ -359,22 +362,22 @@ class Chain:
         else:
             return self
 
-    def getChildren(self):  
+    def getChildren(self):
         parentTable = self.getRoot()
         return parentTable.getChildren(self)
-    
+
     def getParent(self):
         return self.parent
-    
+
     def getName(self):
         return self.name
-    
+
     def getPolicy(self):
         return self.policy
-        
+
     def setPolicy(self, policy):
         self.policy = policy
-            
+
     def getRules(self):
         return self.rows
 
@@ -409,7 +412,7 @@ class Table(Chain):
         result = True
 
         if otherTable.getName() != self.name:
-            log( 20, "Cannot compare table %s with table %s" % (self.name, otherTable.getName()) )
+            log( 10, "Cannot compare table %s with table %s" % (self.name, otherTable.getName()) )
             result = False
         else:
             thisTableChains = []
@@ -431,9 +434,13 @@ class Table(Chain):
 
     def getChain(self, name):
         result = None
+        #log(60, "Gettign chain %s from table %s. Chains in table: \n%s" % (name, self.getName(), str(self.chains)))
         for chain in self.chains:
             if chain.getName() == name:
                 result = chain
+
+        if result is None:
+            log(101, "Can't find chain %s in table %s. Chains in table: \n%s" % (name, self.getName(), str(self.chains)))
 
         return result
 

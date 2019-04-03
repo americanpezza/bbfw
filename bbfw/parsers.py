@@ -39,7 +39,7 @@ class ParserException(Exception):
 class RulesParser:
     def __init__(self, lines):
         self.lines = lines
-        
+
     def getLines(self, noComments=False):
         buffer = list(self.lines)
         if noComments:
@@ -47,20 +47,20 @@ class RulesParser:
             for line in self.lines:
                 if line.find("#") != 0:
                     buffer.append(line)
-                    
+
         return buffer
 
 class FileReader(RulesParser):
     def __init__(self, file):
-        
+
         RulesParser.__init__(self, [])
-        
+
         self.fileName = file
         if not os.path.exists(file):
             raise ConfFileException("File does not exist: %s" % file)
-        
+
         self.parse()
-        
+
     def parse(self):
         data = open(self.fileName,'r')
         props = data.readlines()
@@ -110,15 +110,15 @@ class Parser():
 
     def getParser(self, table, chainName):
         pass
-        
+
     def readChainLines(self, parser, chain, table, parentChain):
         for line in parser.getLines(noComments=True):
             if len(line) > 1:
                 rule = Rule(line)
                 target = rule.getTarget()
-                
+
                 if not table.isTargetValid( target, chain.getName()  ):
-                    log( 20, "Rule '%s' in chain %s table %s has invalid target, ignored" % (line, chain.getName(), table.getName()) )
+                    log( 60, "Rule '%s' in chain %s table %s has invalid target, ignored" % (line, chain.getName(), table.getName()) )
                 else:
                     chain.append(rule)
 
@@ -190,7 +190,7 @@ class IPTSaveFileParser(Parser):
         tableName = line[1:]
         if tableName not in TABLES:
             raise ParserException("Table %s is not a valid iptables table" % tableName)
-        
+
         table = conf.getTable(tableName)
         if table is None:
             table = Table(tableName)
@@ -220,12 +220,12 @@ class ConfigParser(Parser):
                 conf.add(table)
 
         return conf
-        
+
     def parseTable(self, name):
         table = Table(name)
         self.parseTableChains(table)
         self.parseTableProps(table)
-        
+
         return table
 
     def parseTableProps(self, table):
@@ -236,11 +236,11 @@ class ConfigParser(Parser):
                 parts = line.split()
                 policy = parts[1]
                 chainName = parts[0].strip(':')
- 
+
                 chain = table.getChain(chainName)
                 if chain is not None:
                     chain.setPolicy(policy)
-                                    
+
         except ConfFileException, e:
             pass
             #print "Can't parse table props config file %s: %s" % (filename, e.message)
@@ -250,7 +250,7 @@ class ConfigParser(Parser):
         if os.path.isdir(folderName):
             Parser.parseTableChains(self, table)
         else:
-            log( 20, "No chain folder for table %s, table will be empty" % table.getName()  )
+            log( 25, "No chain folder for table %s, table will be empty" % table.getName()  )
 
     def getParser(self, table, chainName):
         tableFolderName = os.path.join(self.rootDir, table.getName())

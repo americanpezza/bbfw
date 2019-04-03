@@ -30,10 +30,14 @@ from parsers import IPTSaveFileParser
 from logger import log
 
 def purgeTable(table, chain, recursive=True, reset=True):
+    log(60, "Purging chain %s from table %s" % (table, chain))
+    deletions = 0
     ruleset = getCurrentRuleset()
     tables = ruleset.getTables()
-    
+
     tablesToPurge = tables.keys()
+
+    # If a table has been specified, only purge that one
     if table is not None:
         if table in tablesToPurge:
             tablesToPurge = [table]
@@ -41,55 +45,74 @@ def purgeTable(table, chain, recursive=True, reset=True):
             raise Exception("Unknown table %s" % table)
 
     for tableToPurge in tablesToPurge:
+        log(50, "Now purging table %s" % tableToPurge)
+
         tableObject = ruleset.getTable(tableToPurge)
         chainsToDelete = tableObject.getChains()
+
+        # If a chain has been specified, only remove that one
         if chain is not None:
             chainsToDelete = [chain]
 
         for chainToDelete in chainsToDelete:
             chainObject = tableObject.getChain(chainToDelete)
             if chainObject is None:
-                raise Exception("Chain %s not present in table %s" % (chainToDelete, tableToPurge))
-
-            purgeChain(chainObject, recursive, reset)
+                log(45, "Chain %s not present in table %s" % (chainToDelete, tableToPurge))
+                #raise Exception("Chain %s not present in table %s" % (chainToDelete, tableToPurge))
+            else:
+                deletions = deletions + purgeChain(chainObject, recursive, reset)
+                log(70, "Chain %s removed from table %s" % (chainToDelete, tableToPurge))
 
     # Apply changes
     loadRuleset(ruleset, True)
+    print "%d chains have been removed." % deletions
 
 def purgeChain(chainObject, recursive, reset):
+    removed = 0
     table = chainObject.getRoot()
     children = chainObject.getChildren()
 
     if recursive:
         # Remove children
+        print "Recursive..."
         for chain in children:
-            purgeChain(chain, recursive, reset)
+            removed = removed + purgeChain(chain, recursive, reset)
+            log(70, "Removed child chain %s from parent chain %s" % (chain.getName(), chainObject.getName()))
 
     # now remove the chain itself
     tableToPurge = table.getName()
     chainToDelete = chainObject.getName()
-
     chainObject.purge()
+    log(70, "Purged chain %s" % chainToDelete)
 
     builtins = TABLE_CHAINS[table.name]
     if chainToDelete in builtins:
+        log(80, "Chian %s is builtin, cannot remove it" % chainToDelete)
         if reset:
             result = chainObject.setPolicy("ACCEPT")
+            log(80, "Chian %s is builtin, reset policy to ACCEPT" % chainToDelete)
 
     else:
-        removed = 0
+        refremoved = 0
         root = chainObject.getRoot()
+        log(90, "Removing references to chain %s" % chainObject.getName())
         for child in root.chains:
             references = child.getRuleByTarget(chainToDelete)
             for reference in references:
                 res = child.remove(reference)
-                removed = removed + 1
+                refremoved = refremoved + 1
+                log(90, "Removed reference to chain %s from chain %s" % (chainObject.getName(), child.getName()))
 
+        removed = removed + 1
         result = chainObject.getRoot().removeChain(chainObject)
+        log(40, "Deleted chain %s" % chainObject.getName())
+        log(70, "Removed %s references to chain %s" % (str(refremoved), chainObject.getName()))
+
+    return removed
 
 def getCurrentRuleset():
     iptp = subprocess.Popen(['iptables-save'],stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    
+
     (out, err) = iptp.communicate()
     lines = out.split("\n")
     parser = IPTSaveFileParser(lines)
@@ -98,7 +121,7 @@ def getCurrentRuleset():
 
     return config
 
-def loadRuleset(ruleset, quiet=False):
+def loadRuleset(ruleset, quiet=False, wipe=False):
     fileRenderer = FileRenderer(ruleset)
     string = fileRenderer.render()
     iptp = subprocess.Popen(['iptables-restore'],stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
