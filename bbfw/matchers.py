@@ -25,6 +25,15 @@
 global matchers
 matchers = {}
 
+icmpcommontypes = { "echo-reply": 0,
+                      "destination-unreachable": 3,
+                      "source-quench": 4,
+                      "redirect": 5,
+                      "echo-request": 8,
+                      "time-exceeded": 10,
+                     "parameter-problem": 11
+}
+
 
 def getMatcher(prop):
     global matchers
@@ -210,4 +219,26 @@ def tcpflagsMatcher(this, that):
 
 registerMatcher("--tcp-flags", tcpflagsMatcher )
 
+def getICMPValue(val):
+    result = val
+    if val is not None and (not val.isdigit()) and (val in icmpcommontypes.keys()):
+        result = str(icmpcommontypes[val])
+
+    return result
+
+def icmptypeMatcher(this, that):
+    result = False
+    newThis = str(this.value)
+    newThat = str(that.value)
+
+    if this.value != that.value:
+        newThis = getICMPValue(this.value)
+        newThat = getICMPValue(that.value)
+
+    if newThis == newThat:
+        result = True
+
+    return result
+
+registerMatcher("--icmp-type", icmptypeMatcher )
 
