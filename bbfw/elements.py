@@ -412,7 +412,7 @@ class Table(Chain):
         result = True
 
         if otherTable.getName() != self.name:
-            log( 10, "Cannot compare table %s with table %s" % (self.name, otherTable.getName()) )
+            log( 10, "Cannot compare table %s with table %si: names are different" % (self.name, otherTable.getName()) )
             result = False
         else:
             thisTableChains = []
@@ -420,15 +420,9 @@ class Table(Chain):
                 thisChain = self.getChain(chainName)
                 otherChain = otherTable.getChain(chainName)
 
-                if otherChain is None:
+                if (thisChain is None) or (otherChain is None) or (not thisChain.equals(otherChain)):
                     result = False
-
-                elif thisChain is None:
-                    result = False
-
-                else:
-                    if not thisChain.equals(otherChain):
-                        result = False
+                    break
 
         return result
 
