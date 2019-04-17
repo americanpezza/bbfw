@@ -28,9 +28,8 @@ from bbfw.parsers import ConfigParser, FileReader, IPTSaveFileParser
 from bbfw.renderers import RulesetSummaryRenderer, FileRenderer, RulesetDiffRenderer, RulesetSaver
 from bbfw.elements import Rule
 from bbfw.logger import log
-from bbfw.util import loadRuleset
 from bbfw.elements import TABLES
-from bbfw.util import purgeTable, getCurrentRuleset
+from bbfw.util import purgeTable, getCurrentRuleset, loadRuleset, mergeRulesets
 
 
 DEFAULT_CONF="tables"
@@ -62,7 +61,7 @@ def purge(args):
         proceed = _confirm( msg )
 
     if proceed:
-        purgeTable(args.table, args.chain, args.recursive, args.reset)
+        purgeTable(args.table, args.chain, args.recursive)
 
 def export(args):
     """
@@ -87,12 +86,24 @@ def load(args):
     """  % DEFAULT_CONF
 
     wipeExisting = args.wipe
-    configRuleset = _getFirstRuleset(args.directory, args.file)
     currentRuleset = _getCurrentRuleset()
-    if configRuleset.equals(currentRuleset):
+    requestedRuleset = _getFirstRuleset(args.directory, args.file, currentRuleset)
+    currentRuleset = _getCurrentRuleset()
+    #configRuleset = mergeRulesets(currentRuleset, requestedRuleset, wipe=wipeExisting)
+
+
+#    leftTables = currentRuleset.getTables()
+#    rightTables = requestedRuleset.getTables()
+#    for n, t in rightTables.items():
+#        print "config table %s has %s chains" % (n, len(t.getChains()))
+#
+#    for n, t in leftTables.items():
+#        print "current table %s has %s chains" % (n, len(t.getChains()))
+
+    if requestedRuleset.equals(currentRuleset):
         print "\nConfiguration and current rules are identical, nothing to do.\n"
     else:
-        renderer = RulesetDiffRenderer(currentRuleset, configRuleset)
+        renderer = RulesetDiffRenderer(requestedRuleset, currentRuleset)
 
         if args.verbose:
             print renderer.render()
@@ -105,13 +116,14 @@ def load(args):
             print "\n\nAll user chains will be flushed and deleted and all system chains will be flushed before loading the selected config."
 
         if not args.force:
-            print "The following chains will be loaded:\n %s \n" % _prettyPrintChains(configRuleset.getTables())
+            #print "The following tables will be loaded:\n %s \n" % _prettyPrintChains(configRuleset.getTables())
             proceed = _confirm( "Are you sure you want to continue? (Y/n)" )
 
         if proceed:
-            loadRuleset(configRuleset, not args.verbose, wipeExisting)
+            loadRuleset(requestedRuleset, not args.verbose, wipeExisting)
+            print "Config rules loaded succesfully\n"
         else:
-            print "\nNo change applied.\n"
+            print "No change applied.\n"
 
 def _prettyPrintChains(tables):
     text = ""
@@ -125,7 +137,7 @@ def _prettyPrintChains(tables):
 
 def show(args):
     """
-    Prints out the current netfilter configuration. 
+    Prints out the current netfilter configuration.
     Use -v for a detailed print.
     """
 
@@ -152,48 +164,51 @@ def compare(args):
     rightRuleset = None
     leftRulesset = None
 
-    if args.directory is None or args.file is None:
-        leftRuleset = _getCurrentRuleset()
-        if args.directory is None:
-            rightRuleset = _getFileRuleset(args.file)
+    if args.file is None and args.directory is None:
+        print "Please specify either a config file or a config directory (or both)\n"
+    else:
+        if args.directory is None or args.file is None:
+            leftRuleset = _getCurrentRuleset()
+            if args.directory is None:
+                rightRuleset = _getFileRuleset(args.file, leftRuleset)
+            else:
+                rightRuleset = _getRuleset(args.directory)
+
         else:
-            rightRuleset = _getRuleset(args.directory)
+            rightRuleset = _getFileRuleset(args.file)
+            leftRuleset = _getRuleset(args.directory)
 
-    else:
-        rightRuleset = _getFileRuleset(args.file)
-        leftRuleset = _getRuleset(args.directory)
-
-    if leftRuleset.equals(rightRuleset):
-        print "The rulesets are identical"
-    else:
-        renderer = RulesetDiffRenderer(leftRuleset, rightRuleset, args.table, args.chain)
+        if leftRuleset.equals(rightRuleset):
+            print "No difference.\n"
+        else:
+            renderer = RulesetDiffRenderer(leftRuleset, rightRuleset, args.table, args.chain)
         print renderer.render()
 
-def _getFirstRuleset(conf, fileConf):
+def _getFirstRuleset(conf, fileConf, ruleset=None):
     configRuleset = None
 
     if conf is not None:
-        configRuleset = _getRuleset(conf)
+        configRuleset = _getRuleset(conf, ruleset)
     elif fileConf is not None:
-        configRuleset = _getFileRuleset(fileConf)
+        configRuleset = _getFileRuleset(fileConf, ruleset)
     else:
-        configRuleset = _getRuleset(DEFAULT_CONF)
+        configRuleset = _getRuleset(DEFAULT_CONF, ruleset)
 
     return configRuleset
     
 def _getCurrentRuleset():
     return getCurrentRuleset()
 
-def _getRuleset(confFolder):
-    parser = ConfigParser(confFolder)
+def _getRuleset(confFolder, ruleset=None):
+    parser = ConfigParser(confFolder, ruleset)
     config = parser.parse()
     config.name = "Ruleset loaded from directory %s" % confFolder
 
     return config
 
-def _getFileRuleset(fileName):
+def _getFileRuleset(fileName, ruleset):
     fileReader = FileReader(fileName)
-    fileConfigParser = IPTSaveFileParser(fileReader.getLines(noComments=True))
+    fileConfigParser = IPTSaveFileParser(fileReader.getLines(noComments=True), ruleset)
     config = fileConfigParser.parse()
     config.name = "Ruleset loaded from file %s" % fileName
 

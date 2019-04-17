@@ -24,14 +24,18 @@
 
 
 from logger import log
-from matchers import getMatcher
+from matchers import getMatcher, propToBeIgnored
 
 global TABLES, TABLE_CHAINS, TABLE_CHAINS_EX, TABLE_TARGETS
 
 # for a quick intro to netfilter and iptables: https://www.dbsysnet.com/2016/06/a-deep-dive-into-iptables-and-netfilter-architecture-2
+# for quick diagrams on netfilter inner flows: https://gist.github.com/nerdalert/a1687ae4da1cc44a437d
 
 # The linux IPTABLES tables
 TABLES = ['mangle', 'nat', 'filter', 'raw', 'security']
+
+# The default chain policy
+DEFAULT_POLICY = 'ACCEPT'
 
 # Default chains per each table
 TABLE_CHAINS = {
@@ -47,8 +51,7 @@ TABLE_CHAINS_EX = { 'mangle': True, 'nat': True, 'filter': True, 'raw': True, 's
 
 STANDARD_TARGETS = ['DROP', 'RETURN', 'QUEUE', 'ACCEPT']
 
-EXTENDED_TARGETS = ['CLASSIFY', 'CLUSTERIP', 'CONNMARK', 'DSCP', 'LOG', 'NFLOG', 'NFQUEUE', 'RATEEST',
-            'SET', 'TCPOPTSTRIP', 'ULOG']
+EXTENDED_TARGETS = ['CLASSIFY', 'CLUSTERIP', 'CONNMARK', 'DSCP', 'LOG', 'NFLOG', 'NFQUEUE', 'RATEEST', 'SET', 'TCPOPTSTRIP', 'ULOG']
 
 TABLE_TARGETS = {
     'mangle': {
@@ -93,8 +96,6 @@ class TableChainException(Exception):
 
 
 
-
-
 class Property:
     def __init__(self, name, value=None):
         self.name = name
@@ -120,13 +121,13 @@ class Rule:
                 result.append(prop.value)
 
         return result
-    
+
     def toStr(self, removeTable=False):
-        props = self.getProperties(removeTable)        
+        props = self.getProperties(removeTable)
         line = " ".join(props)
-        
+
         return line.strip()
-    
+
     def propEquals(self, this, that):
         """
         Compare rule properties taking into account possible aliases
@@ -160,7 +161,7 @@ class Rule:
                     found = True
                     break
 
-            if not found:
+            if not found and not propToBeIgnored(prop, rule):
                 result = False
 
             if not result:
@@ -218,7 +219,7 @@ class Rule:
     def getProperty(self, name):
         value = None
         prop = None
-        
+
         for i in range(0, len(self.properties)):
             prop = self.properties[i]
             if prop.name == name:
@@ -254,13 +255,30 @@ class Chain:
 
     def getChildrenNames(self):
         childrenNames = []
-        for child in self.getChildren():
-            childrenNames.append( child.getName() )
+        #for child in self.getChildren():
+        #    childrenNames.append( child.getName() )
+
+        stdTargets = self.getRoot().getStandardTargets(self.getName())
+
+        for rule in self.getRules():
+            t = rule.getTarget()
+            if t is not None and t not in childrenNames and t not in stdTargets:
+                childrenNames.append(t)
 
         return childrenNames
 
+    def getReferers(self):
+        result = []
+        root = self.getRoot()
+        for chain in root.getChains():
+            targets = chain.getChildrenNames()
+            if self.getName() in targets:
+                result.append(chain.getName())
+
+        return result
+
     def getRuleByTarget(self, target):
-        """return the rules in this chain that references a ceratin target"""
+        """return the rules in this chain that references a certain target"""
         result = []
         for rule in self.rows:
             if rule.getTarget() == target:
@@ -282,7 +300,10 @@ class Chain:
 
         if self.getPolicy() != chain.getPolicy():
             result = False
+        elif (len(self.getRules()) == len(chain.getRules())) and len(self.getRules()) == 0:
+            pass
         elif len(self.getRules()) != len(chain.getRules()):
+            log(71, "Chain %s has different number of rows" % self.name)
             result = False
         else:
             index = 0
@@ -293,7 +314,7 @@ class Chain:
 
                 index = index + 1
 
-        # TODO: review this logic to make recursive
+        # TODO: review this logic to make it recursive
         if result:
             if len(self.getChildren()) != len(chain.getChildren()):
                 result = False
@@ -405,24 +426,88 @@ class Table(Chain):
 
         return result
 
+    def getChainsTree(self, parentChainName=None ):
+        tree = {}
+        if parentChainName is None:
+            topChains = self.getBuiltinChains()
+
+            # if a chain has no referers, it's at the top level
+            for chain in self.getChains():
+                chainName = chain.getName()
+                referers = chain.getReferers()
+                if len(referers) == 0:
+                    topChains.append(chainName)
+
+            for chainName in topChains:
+                tree[chainName] = self.getChainsTree(chainName)
+
+        else:
+            chains = self.getChains()
+
+            for chain in chains:
+                chainName = chain.getName()
+                referers = chain.getReferers()
+                if parentChainName in referers:
+                    tree[chainName] = self.getChainsTree(chainName)
+
+        return tree
+
     def __str__(self):
-        return "Table %s" % self.name
+        return "Table %s (%d chains)" % (self.name, len(self.chains))
+
+    def isEmpty(self):
+        result = True
+        chains = self.getChains()
+        stdChains = TABLE_CHAINS[self.getName()]
+
+        if len(chains) != len(stdChains):
+            log(21, "Table %s contains more chains than standard"% self.getName())
+            result = False
+        else:
+            for chain in chains:
+                chainName = chain.getName()
+                if chainName not in stdChains:
+                    log(21, "Chain %s/%s is not standard, table not empty" % (self.getName(), chainName))
+                    result = False
+                    break
+
+                if chain.getPolicy() != DEFAULT_POLICY:
+                    log(21, "Chain %s/%s has non-default policy, table not empty" % (self.getName(), chainName))
+                    result = False
+                    break
+
+                if len(chain.getRules()) != 0:
+                    log(21, "Chain %s/%s has rules, table not empty" % (self.getName(), chainName))
+                    result = False
+                    break
+
+        return result
 
     def equals(self, otherTable):
         result = True
 
         if otherTable.getName() != self.name:
-            log( 10, "Cannot compare table %s with table %si: names are different" % (self.name, otherTable.getName()) )
+            log( 10, "Cannot compare table %s with table %s" % (self.name, otherTable.getName()) )
             result = False
         else:
-            thisTableChains = []
-            for chainName in self.getBuiltinChains():
-                thisChain = self.getChain(chainName)
-                otherChain = otherTable.getChain(chainName)
+            thisChains = self.getChains()
+            thatChains = otherTable.getChains()
 
-                if (thisChain is None) or (otherChain is None) or (not thisChain.equals(otherChain)):
-                    result = False
-                    break
+            if len(thisChains) != len(thatChains):
+                log(21, "Tables not the same: number of chains differ")
+                result = False
+            else:
+                for thisChain in thisChains:
+                    thatChain = otherTable.getChain(thisChain.getName())
+                    if thatChain is None:
+                        log(21, "Chain %s/%s not present in table" % (self.getName(), thisChain.getName()))
+                        result = False
+                        break
+
+                    if not thisChain.equals(thatChain):
+                        log(21, "Chain %s/%s differs" % (self.getName(), thisChain.getName()))
+                        result = False
+                        break
 
         return result
 
@@ -437,6 +522,12 @@ class Table(Chain):
             log(101, "Can't find chain %s in table %s. Chains in table: \n%s" % (name, self.getName(), str(self.chains)))
 
         return result
+
+    def setDefaultPolicy(self, chain):
+        # Reset the chain's policy if this is a system chain.
+        policy = chain.getPolicy()
+        if policy == '-' and not self.isUserChain(chain.getName()):
+            chain.setPolicy("ACCEPT")
 
     def appendChain(self, newChain):
         chain = self.getChain(newChain.getName())
@@ -477,6 +568,14 @@ class Table(Chain):
 
         return result
 
+    def isUserChain(self, name):
+        result = False
+        systemChains = TABLE_CHAINS[self.name]
+        if name not in systemChains:
+            result = True
+
+        return result
+
     def isUserTarget(self, target, chain):
         result = False
         valid = self.isTargetValid(target, chain.getName())
@@ -490,6 +589,15 @@ class Table(Chain):
 
             if target not in STANDARD_TARGETS and target not in EXTENDED_TARGETS and target not in tableChainTargets:
                 result = True
+
+        return result
+
+    def getStandardTargets(self, chainName):
+        result = []
+        result.extend(STANDARD_TARGETS)
+        result.extend(EXTENDED_TARGETS)
+        if self.getName() in TABLE_TARGETS.keys() and chainName in TABLE_TARGETS[self.getName()].keys():
+            result.extend(TABLE_TARGETS[self.getName()][chainName])
 
         return result
 
@@ -560,7 +668,7 @@ class Ruleset:
 
     def equals(self, otherConfig):
         result = True
-        thisTables = len(self.tables.keys())
+        thisTables = len(self.getTables().keys())
         otherTables = len(otherConfig.tables.keys())
 
         if thisTables != otherTables:
@@ -574,7 +682,29 @@ class Ruleset:
                     result = False
                     break
                 else:
+                    log(61, "Comparing table %s with table %s" % (table.getName(), otherTable.getName()))
                     if not table.equals(otherTable):
                         result = False
 
         return result
+
+    def validate(self):
+        """Performs checks on the tables to ensure integrity.
+        Return a list of problems found, with an index (Critical, Warning, info) of their severity
+        """
+
+        result = { "Critical": [], "Warning": [], "Info": []}
+        tables = self.getTables()
+
+        # Check targets in each chain and ensure they are self-contained
+        for table in tables:
+            chains = table.getChains()
+            for chain in chains:
+                targets = chain.getChildrenNames()
+                for target in targets:
+                    c = table.getChain(target)
+                    if c is None:
+                        result['Critical'].append("Chain %s/%s refers to non-existant target %s" % table.getName(), chain.getName(), target)
+
+        return result
+

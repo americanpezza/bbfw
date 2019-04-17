@@ -23,7 +23,7 @@
 
 
 
-import os
+import os, traceback
 
 from elements import TABLES, Ruleset, Rule, Table, Chain, TablePropsException
 from logger import log
@@ -45,24 +45,27 @@ class RulesParser:
         if noComments:
             buffer = []
             for line in self.lines:
-                if line.find("#") != 0:
+                if not line.startswith("#") and len(line) > 0:
                     buffer.append(line)
 
         return buffer
 
 class FileReader(RulesParser):
-    def __init__(self, file):
+    def __init__(self, f):
 
         RulesParser.__init__(self, [])
 
-        self.fileName = file
-        if not os.path.exists(file):
-            raise ConfFileException("File does not exist: %s" % file)
+        if f is None:
+            raise Exception("Invalid filename: %s" % f)
+
+        self.fileName = f
+        if not os.path.exists(f):
+            raise ConfFileException("File does not exist: %s" % f)
 
         self.parse()
 
     def parse(self):
-        data = open(self.fileName,'r')
+        data = open(self.fileName, 'r')
         props = data.readlines()
         for line in props:
             cleanLine = line.strip()
@@ -71,70 +74,67 @@ class FileReader(RulesParser):
 
 class Parser():
     def __init__(self):
-        self.chainBuffer = {}
-
-    def getBufferedChain(self, name):
-        chain = None
-        if self.chainBuffer.has_key(name):
-            chain = self.chainBuffer(name)
-
-        return chain
-
-    def parseTableChains(self, table):
-        for chainName in table.getBuiltinChains():
-            self.parseTableChain(chainName, table)
-            self.chainBuffer = {}
-
-    def parseTableChain(self, chainName, table, parentChain=None):
-        currentChain = table.getChain(chainName)
-        if currentChain is None:
-             chain = Chain(chainName, table)
-             table.appendChain( chain )
-
-        try:
-            chain = table.getChain(chainName)
-            parent = table
-            if parentChain is not None:
-                parent = parentChain
-
-            chain.setParent(parent)
-
-            parser = self.getParser(table, chain.getName())
-            if parser is not None:
-                self.readChainLines(parser, chain, table, parentChain)
-
-            chain.setComplete()
-
-        except ConfFileException, e:
-            pass
-
-    def getParser(self, table, chainName):
         pass
 
-    def readChainLines(self, parser, chain, table, parentChain):
-        for line in parser.getLines(noComments=True):
-            if len(line) > 1:
-                rule = Rule(line)
-                target = rule.getTarget()
-
-                if not table.isTargetValid( target, chain.getName()  ):
-                    log( 60, "Rule '%s' in chain %s table %s has invalid target, ignored" % (line, chain.getName(), table.getName()) )
-                else:
-                    chain.append(rule)
-
-                if table.isUserTarget(target, chain):
-                    childChain = table.getChain(target)
-                    if childChain is None or not childChain.isComplete():
-                        self.parseTableChain(target, table, parentChain=chain)
-
-class IPTSaveFileParser(Parser):
-    def __init__(self, lines):
-        Parser.__init__(self)
-        self.lines = lines
+    def resetChainLines(self):
         self.chainLines = {}
 
+    def addNewChain(self, chainName):
+        if chainName not in self.chainLines.keys():
+            self.chainLines[chainName] = {'policy': "-", 'rules': [] }
+
+    def parseTableChains(self, table):
+        chainNesting = []
+
+        for chainName in self.chainLines.keys():
+            stdTargets = table.getStandardTargets(chainName)
+            chain = Chain(chainName, table)
+            chain.setPolicy(self.chainLines[chainName]['policy'])
+            parent = table
+
+            for line in self.chainLines[chainName]['rules']:
+                if len(line) > 1:
+                    rule = Rule(line)
+                    chain.append(rule)
+                    target = rule.getTarget()
+                    if target is not None and target not in stdTargets:
+                        chainNesting.append( (chainName, target)  )   # (master, slave)
+                else:
+                    log(71, "While parsing %s/%s found an empty line: %s" % (table.getName(), chainName, line))
+
+            #traceback.print_stack()
+            # the chain has been parsed. Shall we add it to the table?
+            currentChain = table.getChain(chainName)
+            if currentChain is not None:
+                if currentChain.equals(chain):
+                    log(71, "The new chain parsed for %s/%s is identical to the one already in the table, ignored" % (table.getName(), chainName))
+                else:
+                    table.removeChain(currentChain)
+                    table.appendChain(chain)
+                    log(71, "The new chain parsed for %s/%s is different from the one already in the table, replaced" % (table.getName(), chainName))
+            else:
+                table.appendChain(chain)
+
+
+        for parent, child in chainNesting:
+            p = table.getChain(parent)
+            c = table.getChain(child)
+            if p is not None and c is not None:
+                c.setParent(p)
+            else:
+                log(1, "While parsing table %s found illegal parent/child relationship: %s -> %s" % (table.getName(), child, parent))
+
+class IPTSaveFileParser(Parser):
+    def __init__(self, lines, baseRuleset=None):
+        Parser.__init__(self)
+        self.lines = lines
+        self.baseRuleset = baseRuleset
+        self.resetChainLines()
+
     def parse(self):
-        conf = Ruleset("File Ruleset")
+        conf = self.baseRuleset
+        if conf is None:
+            conf = Ruleset("File Ruleset")
 
         currentTable = None
         for line in self.lines:
@@ -152,13 +152,17 @@ class IPTSaveFileParser(Parser):
             elif line.find("COMMIT") == 0:
                 self.parseTableChains(currentTable)
                 currentTable = None
-                self.chainLines = {}
+                self.resetChainLines()
 
-            elif line.find(":") == 0:
-                self.addPolicy(currentTable, line)
+            elif line[0:1] == ":":
+                policy, chainName = self.parsePolicy(currentTable, line)
+                self.addNewChain(chainName)
+                self.chainLines[chainName]['policy'] = policy
 
-            else:
+            elif line[0:2] == "-A":
                 self.addRule(currentTable, line)
+            else:
+                raise Exception("While parsing table %s found illegal line: %s" % (currentTable.getName()))
 
         return conf
 
@@ -171,20 +175,20 @@ class IPTSaveFileParser(Parser):
         if not table.canContainChain(targetChain):
             raise ParserException("Chain %s is not valid for table %s" % (targetChain, table.getName()))
 
+        # Don't use the "-A" portion of the rule
         parts = line.split()
         newline = " ".join(parts[2:])
-        if self.chainLines.has_key(targetChain):
-            self.chainLines[targetChain].append(newline)
-        else:
-            self.chainLines[targetChain] = [newline]
 
-    def addPolicy(self, table, line):
+        # Create a new chain or append a new line to an existing one
+        self.addNewChain(targetChain)
+        self.chainLines[targetChain]['rules'].append(newline)
+
+    def parsePolicy(self, table, line):
         parts = line.split()
         policy = parts[1]
         chainName = parts[0].strip(':')
-        chain = Chain(chainName, table)
-        chain.setPolicy(policy)
-        table.appendChain(chain)
+
+        return policy, chainName
 
     def startTable(self, conf, line):
         tableName = line[1:]
@@ -198,62 +202,82 @@ class IPTSaveFileParser(Parser):
 
         return table
 
-    def getParser(self, table, chainName):
-        parser = None
-        if self.chainLines.has_key(chainName):
-            parser = RulesParser(self.chainLines[chainName])
-
-        return parser
-
 class ConfigParser(Parser):
-    def __init__(self, rootDir):
+    def __init__(self, rootDir, baseRuleset=None):
         Parser.__init__(self)
         self.rootDir = rootDir
         self.tablePropsFileExt = ".props"
         self.chainFileExt = ".src"
+        self.baseRuleset = baseRuleset
+        self.resetChainLines()
 
     def parse(self):
-        conf = Ruleset("Config Ruleset")
-        for name in TABLES:
-            table = self.parseTable(name)
-            if len(table.chains) > 0:
-                conf.add(table)
+        conf = self.baseRuleset
+        if conf is None:
+            conf = Ruleset("Config ruleset")
+
+        tableNames = []
+
+        items = os.listdir(self.rootDir)
+        for item in items:
+            if not os.path.isfile(os.path.join(self.rootDir, item)):
+                tableNames.append(item)
+
+        for tableName in tableNames:
+            self.resetChainLines()
+            if tableName is not None:
+                table = self.parseTable(tableName, conf)
+                chainPolicies = self.parseTableProps(table)
+
+                tableRoot = os.path.join(self.rootDir, tableName)
+                files = [f for f in os.listdir(tableRoot) if f.endswith(".src") and os.path.isfile(os.path.join(tableRoot, f))]
+
+                for chainFile in files:
+                    chainName = chainFile[0:-4]
+                    contentReader = FileReader(os.path.join(tableRoot, chainFile))
+                    lines = contentReader.getLines(noComments=True)
+
+                    self.addNewChain(chainName)
+                    self.chainLines[chainName]['rules'] = lines
+
+                    # Add the chain policy
+                    policy = "-"
+                    if chainName in chainPolicies.keys():
+                        policy = chainPolicies[chainName]
+
+                    self.chainLines[chainName]['policy'] = policy
+
+                self.parseTableChains(table)
 
         return conf
 
-    def parseTable(self, name):
+    def parseTable(self, name, ruleset):
         table = Table(name)
-        self.parseTableChains(table)
-        self.parseTableProps(table)
+        if self.baseRuleset is not None:
+            t = self.baseRuleset.getTable(name)
+            if t is not None:
+                table = t
+            else:
+                ruleset.add(table)
+        else:
+            ruleset.add(table)
 
         return table
 
     def parseTableProps(self, table):
         filename = os.path.join(self.rootDir, "%s%s" % (table.getName(), self.tablePropsFileExt))
+        policies = {}
         try:
             parser = FileReader(filename)
             for line in parser.getLines(noComments=True):
                 parts = line.split()
-                policy = parts[1]
-                chainName = parts[0].strip(':')
-
-                chain = table.getChain(chainName)
-                if chain is not None:
-                    chain.setPolicy(policy)
+                if len(parts) == 2:
+                    policy = parts[1]
+                    chainName = parts[0].strip(':')
+                    policies[chainName] = policy
 
         except ConfFileException, e:
             pass
             #print "Can't parse table props config file %s: %s" % (filename, e.message)
 
-    def parseTableChains(self, table):
-        folderName = os.path.join(self.rootDir, table.getName())
-        if os.path.isdir(folderName):
-            Parser.parseTableChains(self, table)
-        else:
-            log( 25, "No chain folder for table %s, table will be empty" % table.getName()  )
-
-    def getParser(self, table, chainName):
-        tableFolderName = os.path.join(self.rootDir, table.getName())
-        fileName = os.path.join(tableFolderName, "%s%s" % (chainName, self.chainFileExt))
-
-        return FileReader(fileName)
+        return policies

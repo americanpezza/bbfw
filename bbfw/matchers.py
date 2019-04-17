@@ -34,6 +34,30 @@ icmpcommontypes = { "echo-reply": 0,
                      "parameter-problem": 11
 }
 
+propDefaultsToBeIgnored = { "--mask": "255.255.255.255"
+}
+
+tcpFlagsAll = "FIN,SYN,RST,PSH,ACK,URG"
+
+def ruleStringNormalizer(text):
+    """Some rules element (ad es.: comment) could contain escaped characters (e.g. "'" escpaed to "\'")
+    which would fail a direct match"""
+
+    return text.replace("\\", "")
+
+
+def propToBeIgnored(thisProp, thatRule):
+    result = False
+
+    if thisProp.name in propDefaultsToBeIgnored.keys():
+        ignoreValue = propDefaultsToBeIgnored[thisProp.name]
+        prop = thatRule.getProperty(thisProp.name)
+        if thisProp.value == ignoreValue:
+            prop = thatRule.getProperty(thisProp.name)
+            if prop is None or prop == ignoreValue:
+                result = True
+
+    return result
 
 def getMatcher(prop):
     global matchers
@@ -134,25 +158,6 @@ def ipprotocolMatcher(this, that):
 registerMatcher("-p", ipprotocolMatcher)
 registerMatcher("--protocol", ipprotocolMatcher)
 
-def stringValidator(value):
-    result = value
-    if value is not None and not value.startswith('"'):
-        result = '"%s"' % value
-
-    return result
-
-def commentMatcher(this, that):
-    result = False
-    thisValue = stringValidator(this.value)
-    thatValue = stringValidator(that.value)
-
-    if thisValue == thatValue:
-        result = True
-
-    return result
-
-registerMatcher("--comment", commentMatcher)
-
 def recentDefaults(this, that):
     return True
 
@@ -190,12 +195,19 @@ def tcpflagsGroupCompare(groupSX, groupDX):
 
     return result
 
+def tcpFlagsCheck(part):
+    result = part
+    if part == "ALL":
+        result = tcpFlagsAll
+
+    return result
+
 def tcpflagsGroups(this):
     result = None
     parts = this.value.split(" ")
     if len(parts) == 2:
-        flagsSX = parts[0].split(",")
-        flagsDX = parts[1].split(",")
+        flagsSX = tcpFlagsCheck(parts[0]).split(",")
+        flagsDX = tcpFlagsCheck(parts[1]).split(",")
         result = (flagsSX, flagsDX)
 
     return result
@@ -219,6 +231,30 @@ def tcpflagsMatcher(this, that):
 
 registerMatcher("--tcp-flags", tcpflagsMatcher )
 
+def logPrefixMatcher(this, that):
+    result = False
+
+    if this.value is not None and that.value is not None:
+        thisText = this.value[0:29]
+        thatText = that.value[0:29]
+        result = thisText == thatText
+
+    return result
+
+registerMatcher("--log-prefix", logPrefixMatcher )
+
+def commentMatcher(this, that):
+    result = False
+
+    if this.value is not None and that.value is not None:
+        thisText = ruleStringNormalizer(this.value)
+        thatText = ruleStringNormalizer(that.value)
+        result = thisText == thatText
+
+    return result
+
+registerMatcher("--comment", commentMatcher )
+
 def getICMPValue(val):
     result = val
     if val is not None and (not val.isdigit()) and (val in icmpcommontypes.keys()):
@@ -241,4 +277,5 @@ def icmptypeMatcher(this, that):
     return result
 
 registerMatcher("--icmp-type", icmptypeMatcher )
+
 
