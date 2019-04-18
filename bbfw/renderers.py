@@ -515,7 +515,14 @@ class RulesetDiffRenderer(SummaryRenderer):
 
             if thisChild is None or otherChild is None:
                 log(21, "Table %s, chain %s invalid in either config set" % (thisItem.getName(), child))
-                buffer.append( (order, thisChild.getName()) )
+
+                name = "<unknown>"
+                if thisChild is not None:
+                    name = thisChild.getName()
+                elif otherChild is not None:
+                    name = otherChild.getName()
+                buffer.append( (order, name) )
+
                 buffer.extend( self.renderElemDiff(thisChild, otherChild, order)   )
                 continue
 
