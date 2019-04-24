@@ -457,7 +457,7 @@ class RulesetDiffRenderer(SummaryRenderer):
         policyBuffer = self.renderPolicyDiff(thisChain, otherChain, order + 1)
 
         # Check rules
-        if len(thisChain.getRules()) != len(otherChain.getRules()):
+        if len(thisChain) != len(otherChain):
             ruleExistanceBuffer = self.renderChainRulesDiff( thisChain, otherChain, order + 1  )
         else:
             ruleExistanceBuffer = self.renderChainRulesCompare( thisChain, otherChain, order + 1 )

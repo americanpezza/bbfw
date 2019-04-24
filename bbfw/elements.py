@@ -310,32 +310,12 @@ class Chain:
             result = False
         else:
             index = 0
-            while index < len(self.rows):
+            while index < len(self):
                 if not self.rows[index].equals(chain.rows[index]):
                     result = False
                     break
 
                 index = index + 1
-
-        # TODO: review this logic to make it recursive
-        # it's not needed to compare children. even when loading a new ruleset, the children will be compared anyway when needed
-        #if result:
-        #    if len(self.getChildren()) != len(chain.getChildren()):
-        #        result = False
-        #    else:
-        #        thisChildren = self.getChildren()
-        #        index = 0
-        #        done = False
-#
-#                while index < len(thisChildren):
-#                    childDifferences = []
-#                    thisChild = thisChildren[index]
-#                    otherChild = chain.getRoot().getChain(thisChild.getName())
-#                    if not thisChild.equals(otherChild):
-#                        result = False
-#                        break
-#
-#                    index = index + 1
 
         return result
 
@@ -633,9 +613,6 @@ class Table(Chain):
 
         return result
 
-    def getChains(self):
-        return self._chains
-
     def chains(self, chainName=None):
         chainNames = [chainName]
         if chainName is None:
@@ -647,49 +624,34 @@ class Table(Chain):
             if chain is not None:
                 yield chain
 
-    def __iter__(self):
-        self._chainnames = []
-        for c in self._chains:
-            self._chainnames.append(c.getName())
-
-        self._chainNamesCtr = 0
-
-        return self
-
-    def __next__(self):
-        result = self._chainnames[self.chainNamesCtr]
-        if self.chainNamesCtr == len(self._chainnames):
-            raise StopIteration
-        else:
-            self.chainNamesCtr = self.chainNamesCtr + 1
-
-        return result
-
 class Ruleset:
     def __init__(self, name):
-        self.tables = {}
+        self._tables = {}
         self.name = name
+
+    def __len__(self):
+        return len(self._tables.keys())
 
     def getName(self):
         return self.name
 
     def add(self, table):
         if table is not None:
-            self.tables[table.getName()] = table
+            self._tables[table.getName()] = table
 
     def getTable(self, name):
         result = None
-        if self.tables.has_key(name):
-            result = self.tables[name]
+        if self._tables.has_key(name):
+            result = self._tables[name]
 
         return result
 
     def getTables(self):
-        return self.tables
+        return self._tables
 
     def getChainFromRule(self, rule):
         result = None
-        for name, table in self.tables.items():
+        for name, table in self._tables.items():
             chain = table.getChainFromRule(rule)
             if chain is not None:
                 result = chain
