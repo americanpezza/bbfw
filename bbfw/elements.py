@@ -273,7 +273,7 @@ class Chain:
     def getReferers(self):
         result = []
         root = self.getRoot()
-        for chain in root.getChains():
+        for chain in root.chains():
             targets = chain.getChildrenNames()
             if self.getName() in targets:
                 result.append(chain.getName())
@@ -414,14 +414,14 @@ class Table(Chain):
         Chain.__init__(self, name, None, *args, **kwargs)
 
         # The chains in this table
-        self.chains = []
+        self._chains = []
 
     def __len__(self):
-        return len(self.chains)
+        return len(self._chains)
 
     def getChainFromRule(self, rule):
         result = None
-        for chain in self.chains:
+        for chain in self._chains:
             if chain.hasRule(rule):
                 result = chain
                 break
@@ -439,7 +439,7 @@ class Table(Chain):
             topChains = self.getBuiltinChains()
 
             # if a chain has no referers, it's at the top level
-            for chain in self.getChains():
+            for chain in self.chains():
                 chainName = chain.getName()
                 referers = chain.getReferers()
                 if len(referers) == 0:
@@ -449,9 +449,7 @@ class Table(Chain):
                 tree[chainName] = self.getChainsTree(chainName)
 
         else:
-            chains = self.getChains()
-
-            for chain in chains:
+            for chain in self.chains():
                 chainName = chain.getName()
                 referers = chain.getReferers()
                 if parentChainName in referers:
@@ -460,18 +458,17 @@ class Table(Chain):
         return tree
 
     def __str__(self):
-        return "Table %s (%d chains)" % (self.name, len(self.chains))
+        return "Table %s (%d chains)" % (self.name, len(self._chains))
 
     def isEmpty(self):
         result = True
-        chains = self.getChains()
         stdChains = TABLE_CHAINS[self.getName()]
 
-        if len(chains) != len(stdChains):
+        if len(self) != len(stdChains):
             log(21, "Table %s contains more chains than standard"% self.getName())
             result = False
         else:
-            for chain in chains:
+            for chain in self.chains():
                 chainName = chain.getName()
                 if chainName not in stdChains:
                     log(21, "Chain %s/%s is not standard, table not empty" % (self.getName(), chainName))
@@ -497,14 +494,11 @@ class Table(Chain):
             log( 10, "Cannot compare table %s with table %s" % (self.name, otherTable.getName()) )
             result = False
         else:
-            thisChains = self.getChains()
-            thatChains = otherTable.getChains()
-
-            if len(thisChains) != len(thatChains):
+            if len(self) != len(otherTable):
                 log(21, "Tables not the same: number of chains differ")
                 result = False
             else:
-                for thisChain in thisChains:
+                for thisChain in self.chains():
                     thatChain = otherTable.getChain(thisChain.getName())
                     if thatChain is None:
                         log(21, "Chain %s/%s not present in table" % (self.getName(), thisChain.getName()))
@@ -520,13 +514,13 @@ class Table(Chain):
 
     def getChain(self, name):
         result = None
-        #log(60, "Gettign chain %s from table %s. Chains in table: \n%s" % (name, self.getName(), str(self.chains)))
-        for chain in self.chains:
+        #log(60, "Gettign chain %s from table %s. Chains in table: \n%s" % (name, self.getName(), str(self._chains)))
+        for chain in self._chains:
             if chain.getName() == name:
                 result = chain
 
         if result is None:
-            log(101, "Can't find chain %s in table %s. Chains in table: \n%s" % (name, self.getName(), str(self.chains)))
+            log(101, "Can't find chain %s in table %s. Chains in table: \n%s" % (name, self.getName(), str(self._chains)))
 
         return result
 
@@ -539,7 +533,7 @@ class Table(Chain):
     def appendChain(self, newChain):
         chain = self.getChain(newChain.getName())
         if chain is None:
-            self.chains.append(newChain)
+            self._chains.append(newChain)
         else:
             raise Exception("Chain %s already exists in table %s" % (chain.getName(), self.name))
 
@@ -547,7 +541,7 @@ class Table(Chain):
         result = False
         chain = self.getChain(chainToDelete.getName())
         if chain is not None:
-            self.chains.remove(chain)
+            self._chains.remove(chain)
             result = True
 
         return result
@@ -625,7 +619,7 @@ class Table(Chain):
 
     def getChildren(self, chain):
         result = []
-        for c in self.chains:
+        for c in self._chains:
             parent = c.getParent()
             if parent is not None and parent.getName() == chain.getName():
                 result.append(c)
@@ -640,7 +634,36 @@ class Table(Chain):
         return result
 
     def getChains(self):
-        return self.chains
+        return self._chains
+
+    def chains(self, chainName=None):
+        chainNames = [chainName]
+        if chainName is None:
+            for c in self._chains:
+                chainNames.append(c.getName())
+
+        for c in chainNames:
+            chain = self.getChain(c)
+            if chain is not None:
+                yield chain
+
+    def __iter__(self):
+        self._chainnames = []
+        for c in self._chains:
+            self._chainnames.append(c.getName())
+
+        self._chainNamesCtr = 0
+
+        return self
+
+    def __next__(self):
+        result = self._chainnames[self.chainNamesCtr]
+        if self.chainNamesCtr == len(self._chainnames):
+            raise StopIteration
+        else:
+            self.chainNamesCtr = self.chainNamesCtr + 1
+
+        return result
 
 class Ruleset:
     def __init__(self, name):
@@ -705,8 +728,7 @@ class Ruleset:
 
         # Check targets in each chain and ensure they are self-contained
         for table in tables:
-            chains = table.getChains()
-            for chain in chains:
+            for chain in table.chains():
                 targets = chain.getChildrenNames()
                 for target in targets:
                     c = table.getChain(target)

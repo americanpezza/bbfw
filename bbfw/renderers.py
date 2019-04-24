@@ -137,14 +137,8 @@ class FileRenderer(Renderer):
         buffer = []
         body = []
 
-        chains = table.getChains()
-        if chainName is not None:
-            chain = table.getChain(chainName)
-            if chain is not None:
-                chains = [chain]
-
-        for chain in chains:
-            chainLines = self.renderChain(chain)
+        for chainObj in table.chains(chainName):
+            chainLines = self.renderChain(chainObj)
             if renderEmpty or len(chainLines) > 0:
                 body.extend(chainLines)
 
@@ -161,7 +155,7 @@ class FileRenderer(Renderer):
 
     def renderPolicies(self, table):
         buffer = []
-        for chain in table.chains:
+        for chain in table.chains():
             policyText = ":%s %s [0:0]" % (chain.getName(), chain.getPolicy())
             buffer.append(policyText)
 
@@ -495,10 +489,10 @@ class RulesetDiffRenderer(SummaryRenderer):
 
                 children = list(set(thisChildren + otherChildren))
             else:
-                for c in thisItem.getChains():
+                for c in thisItem.chains():
                     children.append(c.getName())
 
-                for c in otherItem.getChains():
+                for c in otherItem.chains():
                     if c.getName() not in children:
                         children.append(c.getName())
 

@@ -29,7 +29,7 @@ from bbfw.renderers import RulesetSummaryRenderer, FileRenderer, RulesetDiffRend
 from bbfw.elements import Rule
 from bbfw.logger import log
 from bbfw.elements import TABLES
-from bbfw.util import purgeTable, getCurrentRuleset, loadRuleset, mergeRulesets
+from bbfw.util import purgeTable, getCurrentRuleset, loadRuleset
 
 
 DEFAULT_CONF="tables"
@@ -89,8 +89,6 @@ def load(args):
     currentRuleset = _getCurrentRuleset()
     requestedRuleset = _getFirstRuleset(args.directory, args.file, currentRuleset)
     currentRuleset = _getCurrentRuleset()
-    #configRuleset = mergeRulesets(currentRuleset, requestedRuleset, wipe=wipeExisting)
-
 
 #    leftTables = currentRuleset.getTables()
 #    rightTables = requestedRuleset.getTables()
@@ -129,8 +127,7 @@ def _prettyPrintChains(tables):
     text = ""
     for name, t in tables.items():
         text = text + "\n * %s table:" % name
-        chains = t.getChains()
-        for c in chains:
+        for c in t.chains():
             text = text + "\n     - %s" % c.getName()
 
     return text

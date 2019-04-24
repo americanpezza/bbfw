@@ -29,7 +29,7 @@ from renderers import FileRenderer
 from parsers import IPTSaveFileParser
 from logger import log
 
-def purgeTable(table, chain, recursive=True):
+def purgeTableOLD(table, chain, recursive=True):
     deletions = 0
     ruleset = getCurrentRuleset()
     tables = ruleset.getTables()
@@ -59,6 +59,36 @@ def purgeTable(table, chain, recursive=True):
 
         chainNames = [n.getName() for n in chainsToDelete]
         for chainToDelete in chainNames:
+            log(21, "Now deleting chain %s" % chainToDelete)
+            deletions = deletions + purgeChain(tableObject, chainToDelete )
+            log(70, "Chain %s removed from table %s" % (chainToDelete, tableToPurge))
+
+    if deletions > 0:
+        # Apply changes
+        loadRuleset(ruleset, True, True)
+        print "Removed %s chains, done." % deletions
+    else:
+        print "No chains were deleted, configuration unchanged."
+
+def purgeTable(table, chain, recursive=True):
+    deletions = 0
+    ruleset = getCurrentRuleset()
+    tables = ruleset.getTables()
+
+    tablesToPurge = tables.keys()
+
+    # If a table has been specified, only purge that one
+    if table is not None:
+        if table in tablesToPurge:
+            tablesToPurge = [table]
+        else:
+            raise Exception("Unknown table %s" % table)
+
+    for tableToPurge in tablesToPurge:
+        log(50, "Now purging table %s" % tableToPurge)
+
+        tableObject = ruleset.getTable(tableToPurge)
+        for chainToDelete in tableObject.chains(chain):
             log(21, "Now deleting chain %s" % chainToDelete)
             deletions = deletions + purgeChain(tableObject, chainToDelete )
             log(70, "Chain %s removed from table %s" % (chainToDelete, tableToPurge))
@@ -162,7 +192,7 @@ def loadRuleset(ruleset, quiet=False, wipe=False):
         if not quiet:
             print "\nCould not load config.\nError occurred while loading the following rule (config line# %s, chain %s in %s):\n-->  %s\nError is: %s" % (errline, configChain, configTable, configErrLine, errlines[0])
 
-def mergeRulesets(master, slave, wipe=False):
+def mergeRulesetsOLD(master, slave, wipe=False):
     """
     If we requested to wipe the master ruleset, simply return the slave; otherwise, merge the slave into the master.
     The merge is done by comparing each table, and then each chain. If a table does not exist in the master, then create it. If a chain does not exist in the master, the create it. If a chain exists in the master, replace its contents with the corresponding from the slave.
