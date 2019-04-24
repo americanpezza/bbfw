@@ -253,6 +253,9 @@ class Chain:
             for row in rows:
                 self.rows.append(row)
 
+    def __len__(self):
+        return len(self.rows)
+
     def getChildrenNames(self):
         childrenNames = []
         #for child in self.getChildren():
@@ -300,9 +303,9 @@ class Chain:
 
         if self.getPolicy() != chain.getPolicy():
             result = False
-        elif (len(self.getRules()) == len(chain.getRules())) and len(self.getRules()) == 0:
+        elif len(self) == 0 and len(self) == len(chain):
             pass
-        elif len(self.getRules()) != len(chain.getRules()):
+        elif len(self) != len(chain):
             log(71, "Chain %s has different number of rows" % self.name)
             result = False
         else:
@@ -315,23 +318,24 @@ class Chain:
                 index = index + 1
 
         # TODO: review this logic to make it recursive
-        if result:
-            if len(self.getChildren()) != len(chain.getChildren()):
-                result = False
-            else:
-                thisChildren = self.getChildren()
-                index = 0
-                done = False
-
-                while index < len(thisChildren):
-                    childDifferences = []
-                    thisChild = thisChildren[index]
-                    otherChild = chain.getRoot().getChain(thisChild.getName())
-                    if not thisChild.equals(otherChild):
-                        result = False
-                        break
-
-                    index = index + 1
+        # it's not needed to compare children. even when loading a new ruleset, the children will be compared anyway when needed
+        #if result:
+        #    if len(self.getChildren()) != len(chain.getChildren()):
+        #        result = False
+        #    else:
+        #        thisChildren = self.getChildren()
+        #        index = 0
+        #        done = False
+#
+#                while index < len(thisChildren):
+#                    childDifferences = []
+#                    thisChild = thisChildren[index]
+#                    otherChild = chain.getRoot().getChain(thisChild.getName())
+#                    if not thisChild.equals(otherChild):
+#                        result = False
+#                        break
+#
+#                    index = index + 1
 
         return result
 
@@ -412,6 +416,9 @@ class Table(Chain):
         # The chains in this table
         self.chains = []
 
+    def __len__(self):
+        return len(self.chains)
+
     def getChainFromRule(self, rule):
         result = None
         for chain in self.chains:
@@ -476,7 +483,7 @@ class Table(Chain):
                     result = False
                     break
 
-                if len(chain.getRules()) != 0:
+                if len(chain) != 0:
                     log(21, "Chain %s/%s has rules, table not empty" % (self.getName(), chainName))
                     result = False
                     break

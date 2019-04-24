@@ -64,6 +64,7 @@ class RulesetSaver(Renderer):
 
         # Chain policies
         policies = {}
+        #for chainName in table.getBuiltinChains():
         for chainName in table.getBuiltinChains():
             chain = table.getChain(chainName)
             if chain is not None:
@@ -82,8 +83,8 @@ class RulesetSaver(Renderer):
         # append this chain's policy to the table props
         policies[chain.getName()] = chain.getPolicy()
 
-        for child in chain.getChildren():
-            self.renderChain(folderName, policies, child)
+#        for child in chain.getChildren():
+#            self.renderChain(folderName, policies, child)
 
     def renderTableProps(self, table, policies):
         tableFileName = os.path.join(self.folderName, "%s.props" % table.getName())
@@ -168,12 +169,11 @@ class FileRenderer(Renderer):
 
     def renderChain(self, chain):
         buffer = []
-        rows = chain.getRules()
 
-        if len(rows) > 0:
+        if len(chain) > 0:
             buffer.append(self.getChainHeader(chain))
 
-            for row in rows:
+            for row in chain.getRules():
                 buffer.append("-A %s %s" % (chain.getName(), row.toStr()))
 
             buffer.append(self.getChainFooter(chain))
@@ -245,13 +245,12 @@ class RulesetSummaryRenderer(SummaryRenderer):
         else:
             buffer.append( self.renderWithSeparators(separators, "*%s" % tableName) )
 
-            chains = table.getChains()
+            tree = table.getChainsTree()
             if chainName is not None:
                 chain = table.getChain(chainName)
                 if chain is not None:
-                    chains = [chain]
+                    tree = { ("%s" % chainName): {}}
 
-            tree = table.getChainsTree()
             self.renderSummaryChain(buffer, tableName, tree, [], False)
 
         return buffer
@@ -378,21 +377,18 @@ class RulesetDiffRenderer(SummaryRenderer):
         index = 0
         done = False
 
-        leftRules = thisChain.getRules()
-        rightRules = otherChain.getRules()
-
-        if len(leftRules) == 0 or len(rightRules) == 0:
+        if len(thisChain) == 0 or len(otherChain) == 0:
             leftText = " < is empty"
-            if len(leftRules) > 0:
+            if len(thisChain) > 0:
                 leftText = " < is not empty"
 
             rightText = " > is empty"
-            if len(rightRules) > 0:
+            if len(otherChain) > 0:
                 rightText = " > is not empty"
 
             buffer = [(1, leftText), (1, rightText)]
         else:
-            buffer = self.renderChainRulesActualDiff(leftRules, rightRules)
+            buffer = self.renderChainRulesActualDiff(thisChain.getRules(), otherChain.getRules())
 
         return buffer
 
@@ -471,9 +467,6 @@ class RulesetDiffRenderer(SummaryRenderer):
             ruleExistanceBuffer = self.renderChainRulesDiff( thisChain, otherChain, order + 1  )
         else:
             ruleExistanceBuffer = self.renderChainRulesCompare( thisChain, otherChain, order + 1 )
-
-        # Check children
-        #childrenBuffer = self.renderItemDiff(thisChain, otherChain, order)
 
         if len(policyBuffer) != 0 or len(ruleExistanceBuffer) != 0 or len(childrenBuffer) != 0:
             buffer.append( (order, chainName ) )
